@@ -35,6 +35,13 @@ qt_add_executable(GPSSim
     src/gui/SkyView.h
     src/gui/SkyView.cpp
 )
+qt_add_resources(GPSSim "icon"
+    PREFIX "/"
+    FILES resources/GPSSim.ico
+)
+if(WIN32)
+    target_sources(GPSSim PRIVATE resources/GPSSim.rc)    # icon of the .exe in Explorer
+endif()
 target_link_libraries(GPSSim PRIVATE gpssimcore Qt6::Widgets)
 set_target_properties(GPSSim PROPERTIES WIN32_EXECUTABLE TRUE)
 

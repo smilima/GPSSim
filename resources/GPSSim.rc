@@ -1,0 +1,2 @@
+// Qt's Windows platform plugin looks up the name IDI_ICON1 for the default window icon
+IDI_ICON1 ICON "GPSSim.ico"
