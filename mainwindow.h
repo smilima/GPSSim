@@ -32,10 +32,12 @@ private slots:
     void onBrowse();
     void onProgress(const sim::Progress &p);
     void onFinished(const QString &error);
+    void onRadioChanged();
     void updateControls();
 
 private:
     sim::Scenario scenario() const;
+    void showRadio();
     void log(const QString &text);
     void loadSettings();
     void saveSettings() const;
@@ -44,5 +46,8 @@ private:
     QThread *worker_ = nullptr;
     std::atomic<bool> stop_{false};
     bool nameEdited_ = false;
+    bool transmitConfirmed_ = false;
+    int radio_ = 0;                      // the one the device field shows
+    QString devices_[3];                 // each radio keeps its own address
 };
 #endif // MAINWINDOW_H

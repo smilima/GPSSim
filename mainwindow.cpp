@@ -1,7 +1,9 @@
 #include "mainwindow.h"
 #include "./ui_mainwindow.h"
 
+#include "src/sim/HackRfOutput.h"
 #include "src/sim/IqOutput.h"
+#include "src/sim/UsrpOutput.h"
 
 #include <QCloseEvent>
 #include <QDir>
@@ -12,7 +14,13 @@
 #include <QThread>
 #include <QTime>
 
+#include <memory>
+
 using namespace sim;
+
+namespace {
+enum Radio { NoRadio = 0, UsrpRadio, HackRfRadio };      // the entries of radioCombo
+}
 
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
@@ -33,7 +41,26 @@ MainWindow::MainWindow(QWidget *parent)
     connect(ui->fileEdit, &QLineEdit::textEdited, this, [this] { nameEdited_ = true; });
 
     loadSettings();
+    connect(ui->radioCombo, &QComboBox::currentIndexChanged, this, &MainWindow::onRadioChanged);
     updateControls();
+}
+
+void MainWindow::onRadioChanged()
+{
+    devices_[radio_] = ui->radioDeviceEdit->text();
+    radio_ = ui->radioCombo->currentIndex();
+    showRadio();
+    updateControls();
+}
+
+void MainWindow::showRadio()
+{
+    const bool hackrf = radio_ == HackRfRadio;
+    ui->radioDeviceEdit->setText(devices_[radio_]);
+    ui->radioDeviceEdit->setPlaceholderText(hackrf ? tr("serial number, or its last digits (empty: the first one found)")
+                                                   : tr("addr=192.168.10.2 (empty: the first one found)"));
+    ui->radioGainSpin->setMaximum(hackrf ? 47 : 90);      // a HackRF's TX VGA; UHD clips to the daughterboard's range
+    ui->radioGainSpin->setSingleStep(hackrf ? 1 : 0.5);
 }
 
 MainWindow::~MainWindow()
@@ -75,7 +102,7 @@ Scenario MainWindow::scenario() const
     s.elevationMask = ui->maskSpin->value();
     s.iono = ui->ionoCheck->isChecked();
     s.tropo = ui->tropoCheck->isChecked();
-    s.realTime = ui->streamCheck->isChecked();
+    s.realTime = ui->streamCheck->isChecked() && ui->radioCombo->currentIndex() == NoRadio;      // a radio sets the pace itself
     return s;
 }
 
@@ -88,6 +115,12 @@ void MainWindow::updateControls()
     ui->fileEdit->setEnabled(ui->fileCheck->isChecked());
     ui->browseButton->setEnabled(ui->fileCheck->isChecked());
     ui->portSpin->setEnabled(ui->streamCheck->isChecked());
+    const int radio = ui->radioCombo->currentIndex();
+    ui->radioDeviceEdit->setEnabled(radio != NoRadio);
+    ui->radioGainSpin->setEnabled(radio != NoRadio);
+    ui->radioRefCheck->setEnabled(radio != NoRadio);
+    ui->radioAmpCheck->setEnabled(radio == HackRfRadio);
+    ui->radioPpmSpin->setEnabled(radio == HackRfRadio);
     ui->startButton->setEnabled(!running);
     ui->stopButton->setEnabled(running);
 
@@ -109,10 +142,11 @@ void MainWindow::onStart()
 {
     const Scenario s = scenario();
     const bool toFile = ui->fileCheck->isChecked(), toStream = ui->streamCheck->isChecked();
+    const int radio = ui->radioCombo->currentIndex();
     QString problem = s.validate();
-    if (problem.isEmpty() && !toFile && !toStream) problem = tr("Choose a file, a stream, or both.");
+    if (problem.isEmpty() && !toFile && !toStream && radio == NoRadio) problem = tr("Choose a file, a stream or a radio.");
     if (problem.isEmpty() && toStream && !isComplex(s.format)) problem = tr("Streaming to the receiver needs an I/Q format.");
-    if (problem.isEmpty() && !toFile && s.seconds <= 0 && !toStream) problem = tr("A file needs a duration.");
+    if (problem.isEmpty() && radio != NoRadio && !isComplex(s.format)) problem = tr("Transmitting needs an I/Q format.");
     if (problem.isEmpty() && toFile && s.seconds <= 0) problem = tr("A file needs a duration: 0 s runs until stopped, for streaming only.");
     if (!problem.isEmpty()) {
         QMessageBox::warning(this, tr("GPSSim"), problem);
@@ -121,6 +155,18 @@ void MainWindow::onStart()
     if (toFile && QFileInfo::exists(ui->fileEdit->text())
         && QMessageBox::question(this, tr("GPSSim"), tr("Replace %1?").arg(ui->fileEdit->text())) != QMessageBox::Yes)
         return;
+    if (radio != NoRadio && !transmitConfirmed_) {
+        QMessageBox box(QMessageBox::Warning, tr("GPSSim"),
+                        tr("GPSSim is about to transmit a GPS signal at 1575.42 MHz.\n\n"
+                           "Connect the radio to the receiver by cable, through enough attenuation, or work in a shielded "
+                           "enclosure. Radiating a GPS signal is illegal in most countries and misleads every GPS receiver "
+                           "within range."), QMessageBox::Cancel, this);
+        const QAbstractButton *transmit = box.addButton(tr("Transmit"), QMessageBox::AcceptRole);
+        box.setDefaultButton(QMessageBox::Cancel);
+        box.exec();
+        if (box.clickedButton() != transmit) return;
+        transmitConfirmed_ = true;
+    }
 
     saveSettings();
     stop_ = false;
@@ -129,15 +175,41 @@ void MainWindow::onStart()
     ui->progressBar->setValue(0);
     const QString path = ui->fileEdit->text();
     const quint16 port = quint16(ui->portSpin->value());
+    UsrpSettings u;
+    u.args = ui->radioDeviceEdit->text().trimmed();
+    u.gainDb = ui->radioGainSpin->value();
+    u.externalRef = ui->radioRefCheck->isChecked();
+    HackRfSettings h;
+    h.serial = u.args;
+    h.gainDb = u.gainDb;
+    h.amp = ui->radioAmpCheck->isChecked();
+    h.ppm = ui->radioPpmSpin->value();
+    h.externalRef = u.externalRef;
 
-    worker_ = QThread::create([this, s, path, toFile, toStream, port] {
+    worker_ = QThread::create([this, s, path, toFile, toStream, port, radio, u, h] {
         TeeSink tee;
         FileSink file;
+        std::unique_ptr<RadioSink> transmitter;
         TcpSink tcp;
         QString error;
         if (toFile) {
             if (file.open(path)) tee.add(&file);
             else error = file.error();
+        }
+        if (error.isEmpty() && radio == UsrpRadio) {
+            QMetaObject::invokeMethod(this, [this] { log(tr("Opening the USRP")); });
+            auto usrp = std::make_unique<UsrpSink>();
+            if (usrp->open(u, s)) transmitter = std::move(usrp);
+            else error = usrp->error();
+        } else if (error.isEmpty() && radio == HackRfRadio) {
+            QMetaObject::invokeMethod(this, [this] { log(tr("Opening the HackRF")); });
+            auto hackrf = std::make_unique<HackRfSink>();
+            if (hackrf->open(h, s)) transmitter = std::move(hackrf);
+            else error = hackrf->error();
+        }
+        if (transmitter) {
+            QMetaObject::invokeMethod(this, [this, d = transmitter->description()] { log(d); });
+            tee.add(transmitter.get());
         }
         if (error.isEmpty() && toStream) {
             if (tcp.listen(port)) {
@@ -150,9 +222,16 @@ void MainWindow::onStart()
                 error = tcp.error();
             }
         }
+        int underflows = 0, lost = 0;
         if (error.isEmpty() && !stop_.load())
-            error = runSimulation(s, tee, stop_, [this](const Progress &p) {
+            error = runSimulation(s, tee, stop_, [&](const Progress &p) {
                 QMetaObject::invokeMethod(this, "onProgress", Qt::QueuedConnection, Q_ARG(sim::Progress, p));
+                if (!transmitter || (transmitter->underflows() == underflows && transmitter->lostPackets() == lost)) return;
+                underflows = transmitter->underflows();
+                lost = transmitter->lostPackets();
+                QMetaObject::invokeMethod(this, [this, underflows, lost] {
+                    log(tr("Radio: %1 underflows (the simulation fell behind the device), %2 packets lost on the way").arg(underflows).arg(lost));
+                });
             });
         QMetaObject::invokeMethod(this, "onFinished", Qt::QueuedConnection, Q_ARG(QString, error));
     });
@@ -217,6 +296,10 @@ void MainWindow::saveSettings() const
     q.setValue(QStringLiteral("format"), ui->formatCombo->currentIndex());
     q.setValue(QStringLiteral("file"), ui->fileEdit->text());
     q.setValue(QStringLiteral("nameEdited"), nameEdited_);
+    q.setValue(QStringLiteral("radio"), ui->radioCombo->currentIndex());
+    const auto device = [this](int radio) { return radio == radio_ ? ui->radioDeviceEdit->text() : devices_[radio]; };
+    q.setValue(QStringLiteral("usrpArgs"), device(UsrpRadio));
+    q.setValue(QStringLiteral("hackrfSerial"), device(HackRfRadio));
 }
 
 void MainWindow::loadSettings()
@@ -231,4 +314,9 @@ void MainWindow::loadSettings()
     ui->formatCombo->setCurrentIndex(q.value(QStringLiteral("format"), 0).toInt());
     ui->fileEdit->setText(q.value(QStringLiteral("file")).toString());
     nameEdited_ = q.value(QStringLiteral("nameEdited"), false).toBool();
+    devices_[UsrpRadio] = q.value(QStringLiteral("usrpArgs")).toString();
+    devices_[HackRfRadio] = q.value(QStringLiteral("hackrfSerial")).toString();
+    ui->radioCombo->setCurrentIndex(q.value(QStringLiteral("radio"), int(NoRadio)).toInt());
+    radio_ = ui->radioCombo->currentIndex();
+    showRadio();
 }

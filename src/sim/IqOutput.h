@@ -45,6 +45,15 @@ private:
     QString error_;
 };
 
+// A radio that transmits the samples at L1, and sets the pace: write() blocks while its buffers are full
+class RadioSink : public IqSink
+{
+public:
+    virtual QString description() const = 0;               // what the device was set to, after opening it
+    virtual int underflows() const = 0;                     // times the device ran out of samples
+    virtual int lostPackets() const { return 0; }           // samples lost on the way to the device
+};
+
 // Hands the same samples to several sinks
 class TeeSink : public IqSink
 {
