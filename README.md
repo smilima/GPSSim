@@ -1,10 +1,34 @@
 # GPSSim
 
 Simulates the GPS L1 C/A signal seen by a receiver and writes it as I/Q samples to a file, streams it to SoftGpsReceiver
-over TCP, transmits it at L1 from a USRP, or any mix of these.
+over TCP, transmits it at L1 from a USRP or a HackRF One, or any mix of these.
 
-Open `CMakeLists.txt` in Qt Creator with a Qt 6 kit. It builds `GPSSim` (the window) and `gpssim_cli` (the same
-simulation without one).
+Open `CMakeLists.txt` in Qt Creator with a Qt 6 MinGW 64-bit kit. It builds `GPSSim` (the window) and `gpssim_cli` (the
+same simulation without one).
+
+## What to install
+
+Only Qt is needed to build and run GPSSim. The radio drivers are loaded when transmitting starts, so each one is needed
+only for its radio.
+
+| What | Needed for | Where it goes | Where to get it |
+|---|---|---|---|
+| Qt 6 for MinGW 64-bit, with the MinGW compiler, CMake and Ninja | building | the Qt installer's folder | <https://www.qt.io/download> |
+| UHD | transmitting from a USRP | its installer's folder, `C:\Program Files\UHD` | <https://files.ettus.com/binaries/uhd/> |
+| `hackrf.dll` and `libusb-1.0.dll` | transmitting from a HackRF One | `third_party/hackrf/windows_x64/` | built from the HackRF sources: [Getting hackrf.dll](#getting-hackrfdll) |
+| Python 3 with Pillow | only redrawing the icon (`resources/make_icon.py`) | | <https://www.python.org/>, then `pip install pillow` |
+
+* **Qt.** Only Qt Base's modules are used (Core, Gui, Widgets, Concurrent and Network), so no add-ons are needed. GPSSim
+  was written with Qt 6.11.2 and MinGW 13.1, in a static build of Qt, whose programs run on their own. The installer's
+  Qt is a shared build: the programs run from Qt Creator, and to run one anywhere else, `windeployqt GPSSim.exe` copies
+  Qt's DLLs next to it.
+* **UHD** was 4.11.0 here. GPSSim finds `uhd.dll` through `UHD_PKG_PATH`, in `C:\Program Files\UHD\bin` and on `PATH`,
+  or `gpssim_cli --uhd-library` gives its path. It is built with Visual C++: if it will not load, install the
+  [Microsoft Visual C++ Redistributable](https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist) for
+  x64. An N200 on Ethernet needs no driver.
+* **HackRF.** `third_party/` is not in git, so create the folder. One `hackrf.dll` serves GPSSim and SoftGpsReceiver
+  both. CMake looks for it when it configures, so run CMake again after adding it (*Build > Run CMake* in Qt Creator);
+  the build then copies both DLLs next to the programs. Windows 10 and later install the WinUSB driver a HackRF needs.
 
 ## Using it with SoftGpsReceiver
 
@@ -95,16 +119,32 @@ signal on CLKIN replaces the crystal altogether; *Lock to a 10 MHz reference* th
 With GPSSim on the HackRF at VGA 30, through a cable into SoftGpsReceiver on an N200 (RF 1, 20 dB), all 9 satellites
 were tracked and the fix kept within 1.3 m (CEP50) of the simulated position, with no underflows.
 
-**Getting hackrf.dll.** The HackRF project ships no Windows build. Build `hackrf.dll` from
-<https://github.com/greatscottgadgets/hackrf> with the kit's MinGW; it needs `libusb.h` from libusb, of the version of
-the `libusb-1.0.dll` it will run with (UHD installs one, 1.0.29 with UHD 4.11):
+#### Getting hackrf.dll
 
-```bash
-gcc -O2 -shared -Ihackrf/host/libhackrf/src -Ilibusb-include hackrf/host/libhackrf/src/hackrf.c -o hackrf.dll -L"C:/Program Files/UHD/bin" -l:libusb-1.0.dll -static-libgcc -Wl,-Bstatic -lwinpthread -Wl,-Bdynamic
-```
+The HackRF project ships no Windows build of its library, so `hackrf.dll` is built from its sources with the kit's
+MinGW. It runs with UHD's `libusb-1.0.dll` (1.0.29 with UHD 4.11), and is compiled against libusb's header of the same
+version. Without UHD, take `libusb-1.0.dll` from the Windows binaries of a libusb release,
+<https://github.com/libusb/libusb/releases>, and give its folder to `-L` below.
 
-Put `hackrf.dll` and `libusb-1.0.dll` in `third_party/hackrf/windows_x64/`, and the build copies them next to the
-programs.
+1. In an empty folder, get the HackRF sources and libusb's header. The tag is the version of `libusb-1.0.dll`, which
+   the DLL's *Properties > Details* shows:
+
+   ```bash
+   git clone https://github.com/greatscottgadgets/hackrf
+   ```
+
+   ```bash
+   git clone --depth 1 --branch v1.0.29 https://github.com/libusb/libusb
+   ```
+
+2. With the kit's MinGW on `PATH` (`C:\Qt\Tools\mingw1310_64\bin`), build it in that folder:
+
+   ```bash
+   gcc -O2 -shared -Ihackrf/host/libhackrf/src -Ilibusb/libusb hackrf/host/libhackrf/src/hackrf.c -o hackrf.dll -L"C:/Program Files/UHD/bin" -l:libusb-1.0.dll -static-libgcc -Wl,-Bstatic -lwinpthread -Wl,-Bdynamic
+   ```
+
+3. Copy `hackrf.dll` and `C:\Program Files\UHD\bin\libusb-1.0.dll` into `third_party/hackrf/windows_x64/` and run CMake
+   again. The build copies them next to the programs.
 
 ## What is simulated
 
