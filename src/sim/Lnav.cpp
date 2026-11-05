@@ -47,8 +47,8 @@ uint32_t encodeWordEndingInZero(uint32_t d22, uint32_t last)
 
 } // namespace
 
-LnavEncoder::LnavEncoder(const Ephemeris& eph, const std::vector<Ephemeris>& all, const Iono& iono)
-    : e_(eph), all_(&all), iono_(iono)
+LnavEncoder::LnavEncoder(const Ephemeris& eph, const std::vector<Ephemeris>& all, const Iono& iono, int leapSeconds)
+    : e_(eph), all_(&all), iono_(iono), leapSeconds_(leapSeconds)
 {
 }
 
@@ -119,8 +119,10 @@ void LnavEncoder::payload(int number, int page, uint32_t* w) const
             w[5] = 0;                                                  // A1
             w[6] = 0;                                                  // A0
             w[7] = uint32_t(e.week & 0xFF);                            // A0, t_ot, WN_t
-            w[8] = (18u << 16) | (uint32_t(e.week & 0xFF) << 8) | 7u;  // leap seconds, WN_LSF, DN
-            w[9] = 18u << 14;
+            // Leap seconds, WN_LSF, DN, and the same leap seconds after them: none pending
+            const uint32_t leap = uint32_t(leapSeconds_ & 0xFF);
+            w[8] = (leap << 16) | (uint32_t(e.week & 0xFF) << 8) | 7u;
+            w[9] = leap << 14;
         }
         w[2] |= (1u << 22) | (uint32_t(svid) << 16);                   // data ID, SVID
     }

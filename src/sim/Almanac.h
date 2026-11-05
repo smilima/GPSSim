@@ -12,7 +12,4 @@ namespace sim {
 // Returns an error message, empty on success.
 QString readYuma(const QString& path, int nearWeek, std::vector<AlmanacEntry>* out);
 
-// The GPS week of the current date
-int gpsWeekNow();
-
 } // namespace sim

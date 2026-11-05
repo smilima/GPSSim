@@ -32,6 +32,8 @@ private slots:
     void onBrowse();
     void onLoadAlmanac();
     void onClearAlmanac();
+    void onStartDateChanged(const QDateTime &utc);
+    void showStartDate();
     void onProgress(const sim::Progress &p);
     void onFinished(const QString &error);
     void onRadioChanged();

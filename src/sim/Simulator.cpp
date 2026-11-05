@@ -1,5 +1,6 @@
 #include "Simulator.h"
 
+#include "GpsTime.h"
 #include "Lnav.h"
 
 #include <QElapsedTimer>
@@ -51,6 +52,7 @@ struct Scene
     double lat = 0, lon = 0;
     Vec3 rx0, vel;
     Iono iono;
+    int leapSeconds = 0;
     std::vector<Ephemeris> sats;
 };
 
@@ -91,7 +93,7 @@ class SatSignal
 {
 public:
     SatSignal(const Scene* sc, const Ephemeris& e)
-        : sc_(sc), e_(e), code_(caCode(e.prn)), nav_(e, sc->sats, sc->iono)
+        : sc_(sc), e_(e), code_(caCode(e.prn)), nav_(e, sc->sats, sc->iono, sc->leapSeconds)
     {
         for (int i = 0; i < 1023; ++i) table_[size_t(i)] = float(code_[size_t(i)]);
     }
@@ -202,6 +204,7 @@ QString runSimulation(const Scenario& s, IqSink& sink, const std::atomic<bool>& 
     sc.rx0 = llhToEcef(sc.lat, sc.lon, s.altM);
     sc.vel = enuToEcef(sc.lat, sc.lon, s.velEast, s.velNorth, s.velUp);
     sc.iono = defaultIono();
+    sc.leapSeconds = leapSeconds(s.week, s.tow);
     const int toe = std::clamp(int(std::round(s.tow / 7200.0)) * 7200, 0, 597600);
     sc.sats = s.almanac.empty() ? makeConstellation(s.week, toe) : ephemerisFromAlmanac(s.almanac, s.week, toe);
 

@@ -2,6 +2,7 @@
 #include "./ui_mainwindow.h"
 
 #include "src/sim/Almanac.h"
+#include "src/sim/GpsTime.h"
 #include "src/sim/HackRfOutput.h"
 #include "src/sim/IqOutput.h"
 #include "src/sim/UsrpOutput.h"
@@ -12,8 +13,10 @@
 #include <QFileInfo>
 #include <QMessageBox>
 #include <QSettings>
+#include <QSignalBlocker>
 #include <QThread>
 #include <QTime>
+#include <QTimeZone>
 
 #include <cmath>
 #include <memory>
@@ -44,9 +47,36 @@ MainWindow::MainWindow(QWidget *parent)
     connect(ui->ifSpin, &QDoubleSpinBox::valueChanged, this, &MainWindow::updateControls);
     connect(ui->fileEdit, &QLineEdit::textEdited, this, [this] { nameEdited_ = true; });
 
+    ui->startEdit->setTimeZone(QTimeZone::UTC);
+    ui->startEdit->setDateTimeRange(gpsToUtc(0, 0), gpsToUtc(ui->weekSpin->maximum(), kSecondsPerWeek - 1));
+
     loadSettings();
     connect(ui->radioCombo, &QComboBox::currentIndexChanged, this, &MainWindow::onRadioChanged);
+    // The start as a UTC date and time, or as GPS week and time of week: each follows the other
+    connect(ui->weekSpin, &QSpinBox::valueChanged, this, &MainWindow::showStartDate);
+    connect(ui->towSpin, &QSpinBox::valueChanged, this, &MainWindow::showStartDate);
+    connect(ui->startEdit, &QDateTimeEdit::dateTimeChanged, this, &MainWindow::onStartDateChanged);
+    connect(ui->nowButton, &QPushButton::clicked, this, [this] {
+        const QDateTime now = QDateTime::currentDateTimeUtc();
+        ui->startEdit->setDateTime(now.addMSecs(-now.time().msec()));
+    });
+    showStartDate();
     updateControls();
+}
+
+void MainWindow::onStartDateChanged(const QDateTime &utc)
+{
+    int week = 0, tow = 0;
+    utcToGps(utc, &week, &tow);
+    const QSignalBlocker blockWeek(ui->weekSpin), blockTow(ui->towSpin);
+    ui->weekSpin->setValue(week);
+    ui->towSpin->setValue(tow);
+}
+
+void MainWindow::showStartDate()
+{
+    const QSignalBlocker block(ui->startEdit);
+    ui->startEdit->setDateTime(gpsToUtc(ui->weekSpin->value(), ui->towSpin->value()));
 }
 
 void MainWindow::onRadioChanged()
@@ -289,7 +319,8 @@ void MainWindow::onStart()
     });
     worker_->start();
     updateControls();
-    log(tr("Started: %1 MS/s, %2").arg(s.fs / 1e6).arg(ui->formatCombo->currentText()));
+    log(tr("Started: %1 MS/s, %2, from %3 UTC (GPS week %4, %5 s)").arg(s.fs / 1e6).arg(ui->formatCombo->currentText())
+            .arg(gpsToUtc(s.week, s.tow).toString(QStringLiteral("yyyy-MM-dd HH:mm:ss"))).arg(s.week).arg(s.tow));
     if (!almanac_.empty()) {
         const double days = (double(s.week - almanac_.front().week) * kSecondsPerWeek + s.tow - almanac_.front().toa) / 86400.0;
         if (std::fabs(days) > 7)

@@ -2,18 +2,21 @@
 //
 //   gpssim_cli [--file out.bin] [--port 5555] [--seconds N] [--fs Hz] [--if Hz] [--format int8iq|int16iq|int8|int16]
 //              [--cn0 dB-Hz] [--lat deg] [--lon deg] [--alt m] [--week N] [--tow s] [--no-iono] [--no-tropo]
-//              [--almanac file.alm]      (YUMA; the start is its reference time unless --week or --tow is given)
+//              [--start 2026-11-07T19:50:00|now]      (UTC, in place of --week and --tow)
+//              [--almanac file.alm]      (YUMA; the start is its reference time unless --start, --week or --tow is given)
 //              [--usrp] [--usrp-args addr=192.168.10.2] [--uhd-library uhd.dll]
 //              [--hackrf] [--hackrf-serial digits] [--amp] [--ppm X] [--hackrf-library hackrf.dll]
 //              [--tx-gain dB] [--external-ref]
 
 #include "sim/Almanac.h"
+#include "sim/GpsTime.h"
 #include "sim/HackRfOutput.h"
 #include "sim/IqOutput.h"
 #include "sim/UsrpOutput.h"
 
 #include <QCoreApplication>
 #include <QStringList>
+#include <QTimeZone>
 
 #include <csignal>
 #include <cstdio>
@@ -63,6 +66,16 @@ int main(int argc, char** argv)
         else if (args[i - 1] == "--week") { s.week = v.toInt(); weekGiven = true; }
         else if (args[i - 1] == "--tow") { s.tow = v.toInt(); towGiven = true; }
         else if (args[i - 1] == "--almanac") almanacPath = v;
+        else if (args[i - 1] == "--start") {
+            QDateTime utc = v == "now" ? QDateTime::currentDateTimeUtc() : QDateTime::fromString(QString(v).replace(' ', 'T'), Qt::ISODate);
+            if (!utc.isValid()) {
+                std::printf("--start takes a UTC date and time such as 2026-11-07T19:50:00, or now\n");
+                return 1;
+            }
+            if (v != "now" && utc.timeSpec() == Qt::LocalTime) utc.setTimeZone(QTimeZone::UTC);      // no zone given: UTC
+            utcToGps(utc.toUTC(), &s.week, &s.tow);
+            weekGiven = towGiven = true;
+        }
         else if (args[i - 1] == "--usrp-args") { usrpSettings.args = v; usrpOn = true; }
         else if (args[i - 1] == "--uhd-library") usrpSettings.library = v;
         else if (args[i - 1] == "--hackrf-serial") { hackrfSettings.serial = v; hackrfOn = true; }
@@ -84,8 +97,10 @@ int main(int argc, char** argv)
         if (!towGiven) s.tow = int(ref.toa);
         std::printf("Almanac: PRN");
         for (const AlmanacEntry& a : s.almanac) std::printf(a.health ? " (%d unhealthy)" : " %d", a.prn);
-        std::printf(", week %d, reference time %.0f s. Starting week %d, %d s\n", ref.week, ref.toa, s.week, s.tow);
+        std::printf(", week %d, reference time %.0f s\n", ref.week, ref.toa);
     }
+    std::printf("Start: %s UTC, GPS week %d, %d s\n", qPrintable(gpsToUtc(s.week, s.tow).toString(QStringLiteral("yyyy-MM-dd HH:mm:ss"))),
+                s.week, s.tow);
     if (path.isEmpty() && port == 0 && !usrpOn && !hackrfOn) {
         std::printf("Give --file, --port, --usrp and/or --hackrf. A good file name is %s\n", qPrintable(suggestedFileName(s)));
         return 1;

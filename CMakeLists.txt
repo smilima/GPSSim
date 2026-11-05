@@ -19,6 +19,7 @@ find_package(Qt6 REQUIRED COMPONENTS Core Concurrent Network Widgets)
 add_library(gpssimcore STATIC
     src/sim/Gps.h          src/sim/Gps.cpp
     src/sim/Almanac.h      src/sim/Almanac.cpp
+    src/sim/GpsTime.h      src/sim/GpsTime.cpp
     src/sim/Lnav.h         src/sim/Lnav.cpp
     src/sim/Simulator.h    src/sim/Simulator.cpp
     src/sim/IqOutput.h     src/sim/IqOutput.cpp

@@ -1,8 +1,6 @@
 #include "Almanac.h"
 
-#include <QDateTime>
 #include <QFile>
-#include <QTimeZone>
 
 #include <algorithm>
 #include <cmath>
@@ -83,13 +81,6 @@ QString readYuma(const QString& path, int nearWeek, std::vector<AlmanacEntry>* o
     std::sort(sats.begin(), sats.end(), [](const AlmanacEntry& a, const AlmanacEntry& b) { return a.prn < b.prn; });
     *out = sats;
     return QString();
-}
-
-int gpsWeekNow()
-{
-    // GPS time runs 18 s ahead of UTC, which matters only in the last seconds of a week
-    const QDateTime epoch(QDate(1980, 1, 6), QTime(0, 0), QTimeZone::UTC);
-    return int((epoch.secsTo(QDateTime::currentDateTimeUtc()) + 18) / kSecondsPerWeek);
 }
 
 } // namespace sim

@@ -48,6 +48,19 @@ gpssim_cli --port 5555 --seconds 120
 gnss_cli --tcp 127.0.0.1:5555 --gnss gps --seconds 100
 ```
 
+## Start time
+
+Set the start as a UTC date and time in *Start (UTC)*, or as *GPS week* and *Start time of week*: each follows the
+other, and *Now* takes the current time. GPS time runs ahead of UTC by the leap seconds added since 1980, 18 s since
+the start of 2017, and the navigation message carries the count of the start date (subframe 4, page 18).
+
+```bash
+gpssim_cli --start 2026-11-07T19:50:06 --file GPS_sim-fs2_5-if0-int8iq.bin --fs 2.5e6 --seconds 60
+```
+
+`--start` takes UTC (or a time with its offset, such as `+02:00`) or `now`, in place of `--week` and `--tow`. A
+receiver shows the date modulo 1024 weeks, as with real signals: SoftGpsReceiver lists each possible era.
+
 ## Simulating a real almanac
 
 By default GPSSim makes up its satellites. To simulate the real constellation instead, press *Load…* next to *Almanac*
@@ -60,10 +73,10 @@ gpssim_cli --almanac current_yuma.alm --file GPS_sim-fs2_5-if0-int8iq.bin --fs 2
 
 * **Satellites.** Each healthy satellite in the almanac is simulated. A satellite marked unhealthy is left out, and
   the log lists it.
-* **Time.** Loading an almanac moves the start to its reference time (*GPS week* and *Start time of week*), where it
-  matches the real sky best. Any other start works: the orbits are carried there as plain ellipses, without the
+* **Time.** Loading an almanac moves the start to its reference time, where it matches the real sky best. Any other start works: the orbits are carried there as plain ellipses, without the
   forces that change real orbits, so the further from the reference time, the more the sky differs from the real one.
-  The log mentions it beyond a week. `gpssim_cli` starts at the reference time unless `--week` or `--tow` is given.
+  The log mentions it beyond a week. `gpssim_cli` starts at the reference time unless `--start`, `--week` or `--tow`
+  is given.
 * **Weeks.** YUMA files count weeks modulo 1024, so GPSSim takes the full week nearest today: an almanac older than
   about ten years comes out 1024 weeks late. Its satellites and the fix are still right; only the date is not.
 * **What is broadcast** is made from the almanac too: each satellite's ephemeris is its almanac orbit, carried to the
