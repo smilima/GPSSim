@@ -95,17 +95,22 @@ void LnavEncoder::payload(int number, int page, uint32_t* w) const
         for (int i = 3; i < 9; ++i) w[i] = 0xAAAAAA;
         w[9] = 0x2AAAAA;
         w[2] = 0xAAAA;
-        if (almPrn) {
+        if (almPrn && (*all_)[size_t(almPrn - 1)].prn == 0) {
+            svid = 0;                                                  // a dummy SV in place of a missing satellite
+        } else if (almPrn) {
             const Ephemeris& a = (*all_)[size_t(almPrn - 1)];
             svid = almPrn;
-            const uint32_t af0 = field(a.af0, -20, 11), toa = field(std::fmod(e.toe, 602112.0), 12, 8);
+            // The almanac's reference time is a multiple of 4096 s: carry the orbit and clock there from toe
+            const double toa = std::round(a.toe / 4096.0) * 4096.0, dt = toa - a.toe;
+            const double n = std::sqrt(kMu / std::pow(a.sqrtA, 6)) / kGpsPi + a.deltaN;      // semicircles/s
+            const uint32_t af0 = field(a.af0 + a.af1 * dt, -20, 11);
             w[2] = field(a.e, -21, 16);
-            w[3] = (toa << 16) | field(a.i0 - 0.3, -19, 16);
+            w[3] = (field(toa, 12, 8) << 16) | field(a.i0 - 0.3, -19, 16);
             w[4] = field(a.omegaDot, -38, 16) << 8;
             w[5] = field(a.sqrtA, -11, 24);
-            w[6] = field(a.omega0, -23, 24);
+            w[6] = field(a.omega0 + a.omegaDot * dt, -23, 24);      // the 24 bits wrap it to +/-1 semicircle
             w[7] = field(a.omega, -23, 24);
-            w[8] = field(a.m0, -23, 24);
+            w[8] = field(a.m0 + n * dt, -23, 24);
             w[9] = (((af0 >> 3) & 0xFF) << 14) | (field(a.af1, -38, 11) << 3) | (af0 & 7);
         } else if (svid == 56) {
             w[2] = (field(iono_.alpha[0], -30, 8) << 8) | field(iono_.alpha[1], -27, 8);

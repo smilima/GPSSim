@@ -1,6 +1,7 @@
 #include "mainwindow.h"
 #include "./ui_mainwindow.h"
 
+#include "src/sim/Almanac.h"
 #include "src/sim/HackRfOutput.h"
 #include "src/sim/IqOutput.h"
 #include "src/sim/UsrpOutput.h"
@@ -14,6 +15,7 @@
 #include <QThread>
 #include <QTime>
 
+#include <cmath>
 #include <memory>
 
 using namespace sim;
@@ -33,6 +35,8 @@ MainWindow::MainWindow(QWidget *parent)
     connect(ui->startButton, &QPushButton::clicked, this, &MainWindow::onStart);
     connect(ui->stopButton, &QPushButton::clicked, this, &MainWindow::onStop);
     connect(ui->browseButton, &QPushButton::clicked, this, &MainWindow::onBrowse);
+    connect(ui->almanacButton, &QPushButton::clicked, this, &MainWindow::onLoadAlmanac);
+    connect(ui->almanacClearButton, &QPushButton::clicked, this, &MainWindow::onClearAlmanac);
     connect(ui->fileCheck, &QCheckBox::toggled, this, &MainWindow::updateControls);
     connect(ui->streamCheck, &QCheckBox::toggled, this, &MainWindow::updateControls);
     connect(ui->formatCombo, &QComboBox::currentIndexChanged, this, &MainWindow::updateControls);
@@ -94,6 +98,7 @@ Scenario MainWindow::scenario() const
     s.week = ui->weekSpin->value();
     s.tow = ui->towSpin->value();
     s.seconds = ui->secondsSpin->value();
+    s.almanac = almanac_;
     s.fs = ui->fsSpin->value() * 1e6;
     s.ifFreq = ui->ifSpin->value() * 1e6;
     s.format = SampleFormat(ui->formatCombo->currentIndex());
@@ -121,6 +126,7 @@ void MainWindow::updateControls()
     ui->radioRefCheck->setEnabled(radio != NoRadio);
     ui->radioAmpCheck->setEnabled(radio == HackRfRadio);
     ui->radioPpmSpin->setEnabled(radio == HackRfRadio);
+    ui->almanacClearButton->setEnabled(!almanac_.empty());
     ui->startButton->setEnabled(!running);
     ui->stopButton->setEnabled(running);
 
@@ -136,6 +142,52 @@ void MainWindow::onBrowse()
     if (path.isEmpty()) return;
     ui->fileEdit->setText(QDir::toNativeSeparators(path));
     nameEdited_ = true;
+}
+
+void MainWindow::onLoadAlmanac()
+{
+    const QString current = ui->almanacEdit->text();
+    const QString path = QFileDialog::getOpenFileName(this, tr("YUMA almanac"), current.isEmpty() ? QDir::homePath() : current,
+                                                      tr("YUMA almanac (*.alm *.yuma *.txt);;All files (*)"));
+    if (path.isEmpty()) return;
+    const QString error = loadAlmanac(path, true);
+    if (!error.isEmpty()) QMessageBox::warning(this, tr("GPSSim"), error);
+}
+
+void MainWindow::onClearAlmanac()
+{
+    almanac_.clear();
+    ui->almanacEdit->clear();
+    ui->almanacEdit->setToolTip(QString());
+    log(tr("Using the made-up constellation"));
+    updateControls();
+}
+
+// Reads a YUMA almanac to simulate its satellites, and with setStart moves the start to its reference time
+QString MainWindow::loadAlmanac(const QString &path, bool setStart)
+{
+    std::vector<AlmanacEntry> sats;
+    const QString error = readYuma(path, gpsWeekNow(), &sats);
+    if (!error.isEmpty()) return error;
+    QStringList unhealthy;
+    for (const AlmanacEntry &a : sats)
+        if (a.health != 0) unhealthy << QString::number(a.prn);
+    if (unhealthy.size() == qsizetype(sats.size())) return tr("No satellite in %1 is healthy.").arg(path);
+
+    almanac_ = sats;
+    const AlmanacEntry &ref = sats.front();
+    const QString summary = tr("%1 satellites, week %2, reference time %3 s").arg(sats.size() - unhealthy.size()).arg(ref.week).arg(ref.toa);
+    ui->almanacEdit->setText(QDir::toNativeSeparators(path));
+    ui->almanacEdit->setToolTip(summary);
+    log(tr("Almanac %1: %2").arg(QFileInfo(path).fileName(), summary));
+    if (!unhealthy.isEmpty()) log(tr("Left out as unhealthy: PRN %1").arg(unhealthy.join(QStringLiteral(", "))));
+    if (setStart) {
+        ui->weekSpin->setValue(ref.week);
+        ui->towSpin->setValue(int(ref.toa));
+        log(tr("The start is now the almanac's reference time"));
+    }
+    updateControls();
+    return QString();
 }
 
 void MainWindow::onStart()
@@ -238,6 +290,12 @@ void MainWindow::onStart()
     worker_->start();
     updateControls();
     log(tr("Started: %1 MS/s, %2").arg(s.fs / 1e6).arg(ui->formatCombo->currentText()));
+    if (!almanac_.empty()) {
+        const double days = (double(s.week - almanac_.front().week) * kSecondsPerWeek + s.tow - almanac_.front().toa) / 86400.0;
+        if (std::fabs(days) > 7)
+            log(tr("The start is %1 days from the almanac's reference time. Its orbits are carried there without the "
+                   "forces that change them, so the sky is no longer the real one.").arg(days, 0, 'f', 0));
+    }
 }
 
 void MainWindow::onStop()
@@ -296,6 +354,7 @@ void MainWindow::saveSettings() const
     q.setValue(QStringLiteral("format"), ui->formatCombo->currentIndex());
     q.setValue(QStringLiteral("file"), ui->fileEdit->text());
     q.setValue(QStringLiteral("nameEdited"), nameEdited_);
+    q.setValue(QStringLiteral("almanac"), ui->almanacEdit->text());
     q.setValue(QStringLiteral("radio"), ui->radioCombo->currentIndex());
     const auto device = [this](int radio) { return radio == radio_ ? ui->radioDeviceEdit->text() : devices_[radio]; };
     q.setValue(QStringLiteral("usrpArgs"), device(UsrpRadio));
@@ -314,6 +373,11 @@ void MainWindow::loadSettings()
     ui->formatCombo->setCurrentIndex(q.value(QStringLiteral("format"), 0).toInt());
     ui->fileEdit->setText(q.value(QStringLiteral("file")).toString());
     nameEdited_ = q.value(QStringLiteral("nameEdited"), false).toBool();
+    const QString almanac = q.value(QStringLiteral("almanac")).toString();
+    if (!almanac.isEmpty()) {
+        const QString error = loadAlmanac(almanac, false);
+        if (!error.isEmpty()) log(tr("Using the made-up constellation, as the almanac could not be read: %1").arg(error));
+    }
     devices_[UsrpRadio] = q.value(QStringLiteral("usrpArgs")).toString();
     devices_[HackRfRadio] = q.value(QStringLiteral("hackrfSerial")).toString();
     ui->radioCombo->setCurrentIndex(q.value(QStringLiteral("radio"), int(NoRadio)).toInt());

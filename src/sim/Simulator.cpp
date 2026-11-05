@@ -174,6 +174,8 @@ QString Scenario::validate() const
     if (std::fabs(latDeg) > 90 || std::fabs(lonDeg) > 180) return QStringLiteral("Latitude or longitude out of range.");
     if (tow < 0 || tow >= kSecondsPerWeek) return QStringLiteral("The time of week must be from 0 to 604799 s.");
     if (noiseSigma <= 0) return QStringLiteral("The noise level must be above zero: it sets the signal level through C/N0.");
+    if (!almanac.empty() && std::none_of(almanac.begin(), almanac.end(), [](const AlmanacEntry& a) { return a.health == 0; }))
+        return QStringLiteral("The almanac has no healthy satellites.");
     return QString();
 }
 
@@ -201,11 +203,11 @@ QString runSimulation(const Scenario& s, IqSink& sink, const std::atomic<bool>& 
     sc.vel = enuToEcef(sc.lat, sc.lon, s.velEast, s.velNorth, s.velUp);
     sc.iono = defaultIono();
     const int toe = std::clamp(int(std::round(s.tow / 7200.0)) * 7200, 0, 597600);
-    sc.sats = makeConstellation(s.week, toe);
+    sc.sats = s.almanac.empty() ? makeConstellation(s.week, toe) : ephemerisFromAlmanac(s.almanac, s.week, toe);
 
     std::vector<std::unique_ptr<SatSignal>> satSignals;
     for (const Ephemeris& e : sc.sats)
-        if (e.prn != s.excludedPrn) satSignals.push_back(std::make_unique<SatSignal>(&sc, e));
+        if (e.prn != 0 && e.prn != s.excludedPrn) satSignals.push_back(std::make_unique<SatSignal>(&sc, e));
 
     std::vector<float> noise(kNoiseSize);
     std::mt19937_64 rng(0x5eed + quint64(s.tow));

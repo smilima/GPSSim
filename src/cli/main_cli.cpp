@@ -2,10 +2,12 @@
 //
 //   gpssim_cli [--file out.bin] [--port 5555] [--seconds N] [--fs Hz] [--if Hz] [--format int8iq|int16iq|int8|int16]
 //              [--cn0 dB-Hz] [--lat deg] [--lon deg] [--alt m] [--week N] [--tow s] [--no-iono] [--no-tropo]
+//              [--almanac file.alm]      (YUMA; the start is its reference time unless --week or --tow is given)
 //              [--usrp] [--usrp-args addr=192.168.10.2] [--uhd-library uhd.dll]
 //              [--hackrf] [--hackrf-serial digits] [--amp] [--ppm X] [--hackrf-library hackrf.dll]
 //              [--tx-gain dB] [--external-ref]
 
+#include "sim/Almanac.h"
 #include "sim/HackRfOutput.h"
 #include "sim/IqOutput.h"
 #include "sim/UsrpOutput.h"
@@ -35,9 +37,9 @@ int main(int argc, char** argv)
     QCoreApplication app(argc, argv);
     const QStringList args = app.arguments();
     Scenario s;
-    QString path;
+    QString path, almanacPath;
     int port = 0;
-    bool usrpOn = false, hackrfOn = false;
+    bool usrpOn = false, hackrfOn = false, weekGiven = false, towGiven = false;
     UsrpSettings usrpSettings;
     HackRfSettings hackrfSettings;
     for (int i = 1; i < args.size(); ++i) {
@@ -58,8 +60,9 @@ int main(int argc, char** argv)
         else if (args[i - 1] == "--lat") s.latDeg = v.toDouble();
         else if (args[i - 1] == "--lon") s.lonDeg = v.toDouble();
         else if (args[i - 1] == "--alt") s.altM = v.toDouble();
-        else if (args[i - 1] == "--week") s.week = v.toInt();
-        else if (args[i - 1] == "--tow") s.tow = v.toInt();
+        else if (args[i - 1] == "--week") { s.week = v.toInt(); weekGiven = true; }
+        else if (args[i - 1] == "--tow") { s.tow = v.toInt(); towGiven = true; }
+        else if (args[i - 1] == "--almanac") almanacPath = v;
         else if (args[i - 1] == "--usrp-args") { usrpSettings.args = v; usrpOn = true; }
         else if (args[i - 1] == "--uhd-library") usrpSettings.library = v;
         else if (args[i - 1] == "--hackrf-serial") { hackrfSettings.serial = v; hackrfOn = true; }
@@ -69,6 +72,19 @@ int main(int argc, char** argv)
         else if (args[i - 1] == "--format")
             s.format = v == "int16iq" ? SampleFormat::Int16IQ : v == "int8" ? SampleFormat::Int8Real
                        : v == "int16" ? SampleFormat::Int16Real : SampleFormat::Int8IQ;
+    }
+    if (!almanacPath.isEmpty()) {
+        const QString error = readYuma(almanacPath, gpsWeekNow(), &s.almanac);
+        if (!error.isEmpty()) {
+            std::printf("%s\n", qPrintable(error));
+            return 2;
+        }
+        const AlmanacEntry& ref = s.almanac.front();
+        if (!weekGiven) s.week = ref.week;
+        if (!towGiven) s.tow = int(ref.toa);
+        std::printf("Almanac: PRN");
+        for (const AlmanacEntry& a : s.almanac) std::printf(a.health ? " (%d unhealthy)" : " %d", a.prn);
+        std::printf(", week %d, reference time %.0f s. Starting week %d, %d s\n", ref.week, ref.toa, s.week, s.tow);
     }
     if (path.isEmpty() && port == 0 && !usrpOn && !hackrfOn) {
         std::printf("Give --file, --port, --usrp and/or --hackrf. A good file name is %s\n", qPrintable(suggestedFileName(s)));

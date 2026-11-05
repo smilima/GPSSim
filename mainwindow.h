@@ -30,6 +30,8 @@ private slots:
     void onStart();
     void onStop();
     void onBrowse();
+    void onLoadAlmanac();
+    void onClearAlmanac();
     void onProgress(const sim::Progress &p);
     void onFinished(const QString &error);
     void onRadioChanged();
@@ -37,6 +39,7 @@ private slots:
 
 private:
     sim::Scenario scenario() const;
+    QString loadAlmanac(const QString &path, bool setStart);
     void showRadio();
     void log(const QString &text);
     void loadSettings();
@@ -49,5 +52,6 @@ private:
     bool transmitConfirmed_ = false;
     int radio_ = 0;                      // the one the device field shows
     QString devices_[3];                 // each radio keeps its own address
+    std::vector<sim::AlmanacEntry> almanac_;
 };
 #endif // MAINWINDOW_H

@@ -33,6 +33,9 @@ struct Scenario
     int tow = 345600;
     double seconds = 60;                              // 0 = until stopped
 
+    // The satellites: those of an almanac that are healthy, or a made-up constellation when it is empty
+    std::vector<AlmanacEntry> almanac;
+
     // Signal
     double fs = 5e6;
     double ifFreq = 0;

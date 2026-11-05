@@ -48,6 +48,31 @@ gpssim_cli --port 5555 --seconds 120
 gnss_cli --tcp 127.0.0.1:5555 --gnss gps --seconds 100
 ```
 
+## Simulating a real almanac
+
+By default GPSSim makes up its satellites. To simulate the real constellation instead, press *Load…* next to *Almanac*
+and choose a YUMA almanac, such as the current one from the US Coast Guard Navigation Center
+(<https://www.navcen.uscg.gov/gps-nanus-almanacs-opsadvisories-sof>). *Clear* goes back to the made-up satellites.
+
+```bash
+gpssim_cli --almanac current_yuma.alm --file GPS_sim-fs2_5-if0-int8iq.bin --fs 2.5e6 --seconds 60
+```
+
+* **Satellites.** Each healthy satellite in the almanac is simulated. A satellite marked unhealthy is left out, and
+  the log lists it.
+* **Time.** Loading an almanac moves the start to its reference time (*GPS week* and *Start time of week*), where it
+  matches the real sky best. Any other start works: the orbits are carried there as plain ellipses, without the
+  forces that change real orbits, so the further from the reference time, the more the sky differs from the real one.
+  The log mentions it beyond a week. `gpssim_cli` starts at the reference time unless `--week` or `--tow` is given.
+* **Weeks.** YUMA files count weeks modulo 1024, so GPSSim takes the full week nearest today: an almanac older than
+  about ten years comes out 1024 weeks late. Its satellites and the fix are still right; only the date is not.
+* **What is broadcast** is made from the almanac too: each satellite's ephemeris is its almanac orbit, carried to the
+  run's reference time, so a receiver solves with the same orbits that are simulated. The almanac pages carry every
+  satellite's orbit at a reference time of their own, as a real satellite's do.
+
+With an almanac of March 2023 and one of November 2026, SoftGpsReceiver tracked the satellites above the mask, decoded
+the right date, and placed its fix within 1.5 m (CEP50) of the simulated position.
+
 ## Transmitting with a USRP or a HackRF
 
 Choose the radio in *Transmit at L1*, give its address (such as `addr=192.168.10.2` for a USRP, or nothing for the
@@ -148,8 +173,10 @@ version. Without UHD, take `libusb-1.0.dll` from the Windows binaries of a libus
 
 ## What is simulated
 
-* 32 made-up satellites in six orbital planes, described by broadcast ephemeris. They are not the real constellation.
-* Full LNAV message with valid parity: ephemeris, clock, ionosphere and almanac.
+* 32 made-up satellites in six orbital planes, described by broadcast ephemeris, or the healthy satellites of a YUMA
+  almanac (see [Simulating a real almanac](#simulating-a-real-almanac)).
+* Full LNAV message with valid parity: ephemeris, clock, ionosphere and almanac. A PRN with no satellite has a dummy
+  SV page (SV ID 0) in place of its almanac.
 * Satellite clocks, Earth rotation, Klobuchar ionosphere, Saastamoinen troposphere, receiver clock offset and drift, and
   a receiver moving at constant velocity.
 * White noise, with C/N0 falling with elevation from the zenith value.

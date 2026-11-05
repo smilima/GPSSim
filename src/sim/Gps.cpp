@@ -87,6 +87,32 @@ std::vector<Ephemeris> makeConstellation(int week, int toe)
     return sats;
 }
 
+std::vector<Ephemeris> ephemerisFromAlmanac(const std::vector<AlmanacEntry>& almanac, int week, int toe)
+{
+    std::vector<Ephemeris> sats(kNumSats);
+    for (const AlmanacEntry& a : almanac) {
+        if (a.prn < 1 || a.prn > kNumSats || a.health != 0) continue;
+        const double dt = double(week - a.week) * kSecondsPerWeek + (toe - a.toa);      // from toa to toe
+        const double n = std::sqrt(kMu / std::pow(a.sqrtA, 6));
+        Ephemeris& e = sats[size_t(a.prn - 1)];
+        e.prn = a.prn;
+        e.week = week;
+        e.iodc = e.iode = (toe / 7200) % 200 + a.prn;
+        e.toc = e.toe = toe;
+        e.af0 = quantize(std::clamp(a.af0 + a.af1 * dt, -9.7e-4, 9.7e-4), -31);      // the 22 bits of the message
+        e.af1 = quantize(a.af1, -43);
+        e.e = quantize(a.e, -33);
+        e.sqrtA = quantize(a.sqrtA, -19);
+        e.i0 = quantize(a.i0 / kGpsPi, -31);
+        e.omegaDot = quantize(a.omegaDot / kGpsPi, -43);
+        e.omega = quantize(wrapSemi(a.omega / kGpsPi), -31);
+        // The node is measured from Greenwich at the start of the week, so a later week starts that much further round
+        e.omega0 = quantize(wrapSemi((a.omega0 + a.omegaDot * dt - kOmegaE * double(week - a.week) * kSecondsPerWeek) / kGpsPi), -31);
+        e.m0 = quantize(wrapSemi((a.m0 + n * dt) / kGpsPi), -31);
+    }
+    return sats;
+}
+
 Iono defaultIono()
 {
     Iono io;

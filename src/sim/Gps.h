@@ -40,8 +40,18 @@ struct Iono
     double beta[4] = {0, 0, 0, 0};
 };
 
+// One satellite of an almanac, as a YUMA file gives it (angles in radians). week is the full GPS week of toa.
+struct AlmanacEntry
+{
+    int prn = 0, health = 0, week = 0;
+    double toa = 0, e = 0, i0 = 0, omegaDot = 0, sqrtA = 0, omega0 = 0, omega = 0, m0 = 0, af0 = 0, af1 = 0;
+};
+
+// Both are indexed by PRN - 1, with PRN 0 for a satellite that is not there.
 // A nominal 32-satellite constellation in six planes, with ephemeris reference time toe.
 std::vector<Ephemeris> makeConstellation(int week, int toe);
+// The healthy satellites of an almanac, carried to reference time toe of the given week
+std::vector<Ephemeris> ephemerisFromAlmanac(const std::vector<AlmanacEntry>& almanac, int week, int toe);
 Iono defaultIono();
 
 // IS-GPS-200 Table 20-IV. Position in the ECEF frame of time t.
