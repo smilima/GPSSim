@@ -25,9 +25,14 @@ const char kImageryUrl[] = "https://gibs.earthdata.nasa.gov/wms/epsg4326/best/wm
                            "&LAYERS=BlueMarble_NextGeneration&STYLES=&SRS=EPSG:4326&BBOX=-180,-90,180,90&WIDTH=4096&HEIGHT=2048"
                            "&FORMAT=image/jpeg";
 
+QString imageryFolder()
+{
+    return QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation) + QStringLiteral("/imagery");
+}
+
 QString imageryPath()
 {
-    return QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation) + QStringLiteral("/imagery/blue_marble_4096.jpg");
+    return imageryFolder() + QStringLiteral("/blue_marble_4096.jpg");
 }
 
 } // namespace
@@ -43,6 +48,7 @@ GlobeDialog::GlobeDialog(QWidget* parent) : QDialog(parent), ui(new Ui::GlobeDia
     ui->globeView->setShowOrbits(ui->orbitsCheck->isChecked());
     ui->globeView->setShowSightLines(ui->sightCheck->isChecked());
     ui->globeView->setShowGrid(ui->gridCheck->isChecked());
+    ui->globeView->setTileStore(new TileStore(imageryFolder() + QStringLiteral("/tiles"), this));
 
     connect(ui->orbitsCheck, &QCheckBox::toggled, ui->globeView, &GlobeView::setShowOrbits);
     connect(ui->sightCheck, &QCheckBox::toggled, ui->globeView, &GlobeView::setShowSightLines);

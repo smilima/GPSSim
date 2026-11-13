@@ -94,17 +94,23 @@ where they are at the start. While a run goes on, the globe follows it, at the t
 * **Moving around.** Drag with the left button to turn the globe: the ground under the pointer follows it. Drag up
   with the right button to tilt the view towards the northern horizon, turning about the ground in the middle, and
   down to look straight down again; tilted all the way, the lines of sight rise into the sky over the receiver. The
-  wheel zooms, from 15 Earth radii out, where every orbit shows whole, to 200 km from the ground in the middle.
+  wheel zooms, from 15 Earth radii out, where every orbit shows whole, to 5 km from the ground in the middle.
   *Go to Receiver* turns the receiver back to the middle, and so does a new position; the tilt stays.
 * **Moving the receiver.** Press *Edit*, which then reads *View*, and drag the receiver's red dot, ringed in white:
   the receiver goes to the ground under the pointer, keeping its height, and *Position*, *Latitude, longitude* follow
   as it goes. The globe stays still meanwhile; dragging anywhere else still turns it. Press *View* to only look
   again. Edit is off while a run goes on, and each time the window opens.
-* **Imagery.** The Earth is NASA's Blue Marble, 4096 × 2048 pixels, fetched from NASA's GIBS map service the first
-  time the globe opens (0.7 MB) and kept in `%LOCALAPPDATA%\GPSSim\imagery`. The request is the same whole-Earth
-  image for everyone: nothing of the scenario goes with it. Each pixel is about 10 km, so the ground blurs below a few
-  hundred kilometres. Without a connection the Earth is plain blue, and the imagery is fetched again the next time the
-  globe opens.
+* **Imagery.** From afar the Earth is NASA's Blue Marble, 4096 × 2048 pixels, fetched from NASA's GIBS map service
+  the first time the globe opens (0.7 MB). Nearer, the globe fetches tiles of the part in view, as sharp as they
+  show: Blue Marble down to 490 m a pixel, then over land the Landsat mosaic of NASA's Web-Enabled Landsat Data
+  (WELD) down to 31 m, where streets and fields show. Six tiles come at a time, the coarsest first, so the view fills
+  in and then sharpens; the line at the bottom of the globe counts the tiles on their way.
+* **Offline.** Every image is kept in `%LOCALAPPDATA%\GPSSim\imagery` as it arrives (`tiles\bluemarble` and
+  `tiles\landsat`, by level, row and column, 20 to 75 kB a tile) and read from there first, so a place seen once shows
+  again just as sharp without a connection. Copy the folder to take the imagery to another computer. Without a
+  connection the line at the bottom says so, and places not seen before show the sharpest imagery kept around them,
+  or else the Blue Marble from afar, or plain blue. A tile is asked for again a minute after it could not be fetched.
+  A tile request names only the tile, which tells NASA which part of the Earth is being looked at.
 
 The globe's window keeps its size, place and check boxes.
 

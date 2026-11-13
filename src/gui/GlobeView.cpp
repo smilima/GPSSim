@@ -20,8 +20,8 @@ namespace {
 
 constexpr double kDeg = kPi / 180.0;
 constexpr float kFov = 45.0f;                          // vertical field of view, degrees
-constexpr double kMinRange = 200e3 / kWgsA;            // how near the eye comes to the ground it looks at, in Earth radii:
-                                                       // the imagery is 10 km a pixel, so nearer shows only a blur
+constexpr double kMinRange = 5e3 / kWgsA;              // how near the eye comes to the ground it looks at, in Earth radii:
+                                                       // Landsat's 31 m pixels are then a few on the screen
 constexpr double kMaxRange = 15.0;                     // far enough to see every orbit whole
 constexpr double kMaxTilt = 85.0 * kDeg;               // short of the horizon, so the eye stays above the ground
 constexpr double kTiltPerPixel = 0.3 * kDeg;
@@ -29,6 +29,12 @@ constexpr float kAir = 1.05f;                          // the outer edge of the 
 constexpr float kAboveGround = 1.0003f;                // the grid floats this far out, about 2 km, clear of the surface
 constexpr int kOrbitSteps = 180;
 constexpr int kFloatsPerVertex = 8;                    // position, normal, texture coordinates
+constexpr int kGridSteps = 16;                         // a patch of ground is a grid of 16 x 16 squares
+constexpr int kTilePixels = 512;
+constexpr double kPixelsPerTexel = 1.2;                // a tile is split once its pixels show larger than this
+constexpr size_t kMaxTextures = 192;                   // tiles kept on the graphics card, about 1.3 MB each
+constexpr int kMaxPatches = 400;
+constexpr int kUploadsPerFrame = 8;
 
 const QColor kInView(90, 220, 130), kBelowMask(150, 150, 150), kReceiver(235, 60, 50);
 
@@ -55,32 +61,52 @@ double groundRadius(double psi)
     return b / std::sqrt(c * c + s * s);
 }
 
-const char* const kEarthVertex = R"(
-attribute vec3 position;
-attribute vec3 normal;
-attribute vec2 texCoord;
+// A patch of the WGS-84 ellipsoid between two meridians and two parallels. grid runs east and south across it from 0 to
+// 1; its third value is 1 on the skirt, a wall hanging under the edge that hides the cracks between patches drawn at
+// different sharpness.
+const char* const kTileVertex = R"(
+attribute vec3 grid;
 uniform mat4 viewProjection;
+uniform vec4 bounds;
+uniform vec4 underRect;
+uniform vec4 overRect;
+uniform float skirt;
+uniform float e2;
 varying vec3 vNormal;
-varying vec2 vTexCoord;
+varying vec2 vUnder;
+varying vec2 vOver;
 void main()
 {
-    vNormal = normal;
-    vTexCoord = texCoord;
-    gl_Position = viewProjection * vec4(position, 1.0);
+    float lon = bounds.x + grid.x * bounds.z;
+    float lat = bounds.y - grid.y * bounds.w;
+    float s = sin(lat);
+    float c = cos(lat);
+    float n = 1.0 / sqrt(1.0 - e2 * s * s);
+    vNormal = vec3(c * cos(lon), c * sin(lon), s);
+    vUnder = underRect.xy + grid.xy * underRect.zw;
+    vOver = overRect.xy + grid.xy * overRect.zw;
+    vec3 p = vec3(n * c * cos(lon), n * c * sin(lon), n * (1.0 - e2) * s) - grid.z * skirt * vNormal;
+    gl_Position = viewProjection * vec4(p, 1.0);
 }
 )";
 
-const char* const kEarthFragment = R"(
-uniform sampler2D earth;
-uniform float textured;
+// Landsat over Blue Marble, where Landsat has data: it is black where it has none
+const char* const kTileFragment = R"(
+uniform sampler2D under;
+uniform sampler2D over;
+uniform float hasUnder;
+uniform float hasOver;
 uniform vec3 light;
 varying vec3 vNormal;
-varying vec2 vTexCoord;
+varying vec2 vUnder;
+varying vec2 vOver;
 void main()
 {
-    vec3 base = mix(vec3(0.12, 0.25, 0.45), texture2D(earth, vTexCoord).rgb, textured);
+    vec3 color = mix(vec3(0.12, 0.25, 0.45), texture2D(under, vUnder).rgb, hasUnder);
+    vec3 o = texture2D(over, vOver).rgb;
+    color = mix(color, o, hasOver * smoothstep(0.015, 0.05, max(o.r, max(o.g, o.b))));
     float lit = 0.4 + 0.8 * max(dot(normalize(vNormal), light), 0.0);
-    gl_FragColor = vec4(min(base * lit, vec3(1.0)), 1.0);
+    gl_FragColor = vec4(min(color * lit, vec3(1.0)), 1.0);
 }
 )";
 
@@ -149,11 +175,14 @@ GlobeView::~GlobeView()
 {
     makeCurrent();
     texture_.reset();
-    earthProgram_.reset();
+    textures_.clear();
+    tileProgram_.reset();
     airProgram_.reset();
     lineProgram_.reset();
     sphere_.destroy();
     sphereIndex_.destroy();
+    grid_.destroy();
+    gridIndex_.destroy();
     lineBuffer_.destroy();
     doneCurrent();
 }
@@ -161,6 +190,17 @@ GlobeView::~GlobeView()
 void GlobeView::setEarthImage(const QImage& image)
 {
     pendingImage_ = image;
+    update();
+}
+
+void GlobeView::setTileStore(TileStore* store)
+{
+    tiles_ = store;
+    connect(store, &TileStore::tileReady, this, [this](const TileKey& key, const QImage& image) {
+        arrived_.insert(key, image);
+        update();
+    });
+    connect(store, &TileStore::changed, this, qOverload<>(&GlobeView::update));
     update();
 }
 
@@ -281,11 +321,43 @@ void GlobeView::initializeGL()
         glError_ = tr("OpenGL could not build the globe: %1").arg((*program)->log());
         return false;
     };
-    if (!build(&earthProgram_, kEarthVertex, kEarthFragment) || !build(&airProgram_, kAirVertex, kAirFragment)
+    if (!build(&tileProgram_, kTileVertex, kTileFragment) || !build(&airProgram_, kAirVertex, kAirFragment)
         || !build(&lineProgram_, kLineVertex, kLineFragment))
         return;
 
-    // The WGS-84 ellipsoid, a vertex every degree. Rows run from the south pole; the image's top row is the north.
+    // The grid of a patch, then its skirt: each edge vertex again, hanging
+    std::vector<float> g;
+    const int side = kGridSteps + 1;
+    for (int i = 0; i < side; ++i)
+        for (int j = 0; j < side; ++j) g.insert(g.end(), {float(j) / kGridSteps, float(i) / kGridSteps, 0.0f});
+    std::vector<GLushort> gi;
+    const auto at = [side](int i, int j) { return GLushort(i * side + j); };
+    for (int i = 0; i < kGridSteps; ++i)
+        for (int j = 0; j < kGridSteps; ++j) gi.insert(gi.end(), {at(i, j), at(i, j + 1), at(i + 1, j), at(i, j + 1), at(i + 1, j + 1), at(i + 1, j)});
+    // Around the edge, as a ring of side * 4 - 4 vertices
+    std::vector<GLushort> ring;
+    for (int j = 0; j < kGridSteps; ++j) ring.push_back(at(0, j));
+    for (int i = 0; i < kGridSteps; ++i) ring.push_back(at(i, kGridSteps));
+    for (int j = kGridSteps; j > 0; --j) ring.push_back(at(kGridSteps, j));
+    for (int i = kGridSteps; i > 0; --i) ring.push_back(at(i, 0));
+    const GLushort firstSkirt = GLushort(side * side);
+    for (GLushort v : ring) g.insert(g.end(), {g[v * 3], g[v * 3 + 1], 1.0f});
+    for (size_t k = 0; k < ring.size(); ++k) {
+        const GLushort a = ring[k], b = ring[(k + 1) % ring.size()];
+        const GLushort a2 = GLushort(firstSkirt + k), b2 = GLushort(firstSkirt + (k + 1) % ring.size());
+        gi.insert(gi.end(), {a, b, a2, b, b2, a2});
+    }
+    gridIndexCount_ = int(gi.size());
+    grid_.create();
+    grid_.bind();
+    grid_.allocate(g.data(), int(g.size() * sizeof(float)));
+    grid_.release();
+    gridIndex_.create();
+    gridIndex_.bind();
+    gridIndex_.allocate(gi.data(), int(gi.size() * sizeof(GLushort)));
+    gridIndex_.release();
+
+    // The WGS-84 ellipsoid, a vertex every degree, for the air around it
     std::vector<float> v;
     v.reserve(181 * 361 * kFloatsPerVertex);
     for (int i = 0; i <= 180; ++i) {
@@ -318,6 +390,22 @@ void GlobeView::initializeGL()
     linesChanged_ = true;
 }
 
+// Uploaded row by row as it is, so the image's top row is at texture coordinate 0
+std::unique_ptr<QOpenGLTexture> GlobeView::makeTexture(const QImage& rgba)
+{
+    auto texture = std::make_unique<QOpenGLTexture>(QOpenGLTexture::Target2D);
+    texture->setSize(rgba.width(), rgba.height());
+    texture->setFormat(QOpenGLTexture::RGBA8_UNorm);
+    texture->setMipLevels(texture->maximumMipLevels());
+    texture->allocateStorage(QOpenGLTexture::RGBA, QOpenGLTexture::UInt8);
+    texture->setData(QOpenGLTexture::RGBA, QOpenGLTexture::UInt8, rgba.constBits());
+    texture->generateMipMaps();
+    texture->setMinMagFilters(QOpenGLTexture::LinearMipMapLinear, QOpenGLTexture::Linear);
+    texture->setWrapMode(QOpenGLTexture::ClampToEdge);
+    if (QOpenGLTexture::hasFeature(QOpenGLTexture::AnisotropicFiltering)) texture->setMaximumAnisotropy(8.0f);
+    return texture;
+}
+
 void GlobeView::uploadImage()
 {
     QImage image = pendingImage_.convertToFormat(QImage::Format_RGBA8888);
@@ -327,19 +415,146 @@ void GlobeView::uploadImage()
     if (most > 0 && (image.width() > most || image.height() > most))
         image = image.scaled(std::min(image.width(), int(most)), std::min(image.height(), int(most)), Qt::IgnoreAspectRatio,
                              Qt::SmoothTransformation);
-    // Uploaded row by row as it is, so the image's top row is at texture coordinate 0
-    texture_ = std::make_unique<QOpenGLTexture>(QOpenGLTexture::Target2D);
-    texture_->setSize(image.width(), image.height());
-    texture_->setFormat(QOpenGLTexture::RGBA8_UNorm);
-    texture_->setMipLevels(texture_->maximumMipLevels());
-    texture_->allocateStorage(QOpenGLTexture::RGBA, QOpenGLTexture::UInt8);
-    texture_->setData(QOpenGLTexture::RGBA, QOpenGLTexture::UInt8, image.constBits());
-    texture_->generateMipMaps();
-    texture_->setMinMagFilters(QOpenGLTexture::LinearMipMapLinear, QOpenGLTexture::Linear);
-    texture_->setWrapMode(QOpenGLTexture::DirectionS, QOpenGLTexture::Repeat);
-    texture_->setWrapMode(QOpenGLTexture::DirectionT, QOpenGLTexture::ClampToEdge);
-    if (QOpenGLTexture::hasFeature(QOpenGLTexture::AnisotropicFiltering)) texture_->setMaximumAnisotropy(8.0f);
+    texture_ = makeTexture(image);
     textured_ = true;
+}
+
+// A few of the tiles that have arrived each frame, so that drawing stays smooth, and the ones not drawn for longest
+// dropped from the card
+void GlobeView::uploadTiles()
+{
+    for (int n = 0; n < kUploadsPerFrame && !arrived_.isEmpty(); ++n) {
+        const auto first = arrived_.begin();
+        textures_[first.key()] = {makeTexture(first.value()), frame_};
+        arrived_.erase(first);
+    }
+    if (!arrived_.isEmpty()) update();
+    if (textures_.size() <= kMaxTextures) return;
+    std::vector<std::pair<qint64, TileKey>> byUse;
+    for (const auto& [key, t] : textures_)
+        if (t.usedIn < frame_ - 1) byUse.emplace_back(t.usedIn, key);
+    std::sort(byUse.begin(), byUse.end(), [](const auto& a, const auto& b) { return a.first < b.first; });
+    for (size_t i = 0; i < byUse.size() && textures_.size() > kMaxTextures; ++i) textures_.erase(byUse[i].second);
+}
+
+QOpenGLTexture* GlobeView::tileTexture(const TileKey& key)
+{
+    const auto t = textures_.find(key);
+    if (t == textures_.end()) return nullptr;
+    t->second.usedIn = frame_;
+    return t->second.texture.get();
+}
+
+// Draws the tile, or the four of the level below when its pixels would show too large. Tiles over the horizon or out
+// of view are left out.
+void GlobeView::visit(const TileKey& key, const QMatrix4x4& vp, std::vector<Patch>* patches, std::vector<TileKey>* wanted)
+{
+    const double span = 288.0 / double(1 << key.level) * kDeg;
+    const double west = -kPi + key.col * span, north = kPi / 2 - key.row * span, south = north - span;
+    const double midLat = north - span / 2, midLon = west + span / 2;
+    const double nearEquator = north > 0 && south < 0 ? 0.0 : std::min(std::fabs(north), std::fabs(south));
+    const double reach = 0.5 * std::hypot(span, span * std::cos(nearEquator));      // from the middle to the corners
+    const QVector3D middle = units(llhToEcef(midLat, midLon, 0)), e = eye();      // tiles are in geodetic latitude
+
+    // Over the horizon
+    const double eyeDistance = e.length(), horizon = std::acos(std::min(1.0, (1.0 - kWgsF) / eyeDistance));
+    const double away = std::acos(std::clamp(double(QVector3D::dotProduct(middle.normalized(), e.normalized())), -1.0, 1.0));
+    if (away - reach > horizon) return;
+
+    // Out of the view: outside one of its planes
+    const float radius = float(2.0 * std::sin(std::min(reach, kPi / 2) / 2.0) + 0.02 * span);
+    for (int i = 0; i < 3; ++i)
+        for (const float sign : {1.0f, -1.0f}) {
+            const QVector4D plane = vp.row(3) + sign * vp.row(i);
+            const float length = plane.toVector3D().length();
+            if (QVector3D::dotProduct(plane.toVector3D(), middle) + plane.w() < -radius * length) return;
+        }
+
+    // Split when its pixels would show larger than a few on the screen
+    const double distance = std::max(double((middle - e).length()) - radius, 1e-6);
+    const double pixelsPerRadian = height() / (2.0 * std::tan(kFov / 2.0 * kDeg));
+    if (key.level < kLastTileLevel && span / kTilePixels / distance * pixelsPerRadian > kPixelsPerTexel
+        && int(patches->size()) < kMaxPatches) {
+        for (int r = 0; r < 2; ++r)
+            for (int c = 0; c < 2; ++c) visit({key.level + 1, key.row * 2 + r, key.col * 2 + c}, vp, patches, wanted);
+        return;
+    }
+
+    // The sharpest imagery at hand, and what to fetch for it
+    Patch p;
+    p.key = key;
+    const auto rectIn = [&key](const TileKey& outer) {
+        const int up = key.level - outer.level;
+        const float scale = 1.0f / float(1 << up);
+        return QVector4D(float(key.col - (outer.col << up)) * scale, float(key.row - (outer.row << up)) * scale, scale, scale);
+    };
+    for (int level = std::min(key.level, kLastBlueMarbleLevel); level >= kFirstTileLevel && !p.under; --level) {
+        const TileKey outer = key.ancestor(key.level - level);
+        if ((p.under = tileTexture(outer))) p.underRect = rectIn(outer);
+    }
+    if (!p.under && texture_) {
+        p.under = texture_.get();
+        p.underRect = QVector4D(float((west + kPi) / (2 * kPi)), float((kPi / 2 - north) / kPi), float(span / (2 * kPi)), float(span / kPi));
+    }
+    for (int level = key.level; level > kLastBlueMarbleLevel && !p.over; --level) {
+        const TileKey outer = key.ancestor(key.level - level);
+        if ((p.over = tileTexture(outer))) p.overRect = rectIn(outer);
+    }
+    if (key.level >= kFirstTileLevel) {
+        const TileKey blueMarble = key.ancestor(std::max(0, key.level - kLastBlueMarbleLevel));
+        if (!tileTexture(blueMarble)) wanted->push_back(blueMarble);
+        if (key.level > kLastBlueMarbleLevel && !tileTexture(key)) wanted->push_back(key);
+    }
+    patches->push_back(p);
+}
+
+// The ground, from the patches the view needs, lit from over the viewer's left shoulder
+void GlobeView::drawEarth(const QMatrix4x4& vp, const QVector3D& light)
+{
+    std::vector<Patch> patches;
+    std::vector<TileKey> wanted;
+    for (int row = 0; row < 5; ++row)
+        for (int col = 0; col < 10; ++col) visit({3, row, col}, vp, &patches, &wanted);
+    patchCount_ = int(patches.size());
+    if (tiles_) {
+        // Each once, the coarsest first, so the view fills in quickly and then sharpens
+        std::sort(wanted.begin(), wanted.end(), [](const TileKey& a, const TileKey& b) {
+            return a.level != b.level ? a.level < b.level : (a.row != b.row ? a.row < b.row : a.col < b.col);
+        });
+        wanted.erase(std::unique(wanted.begin(), wanted.end()), wanted.end());
+        tiles_->want(wanted);
+    }
+
+    grid_.bind();
+    gridIndex_.bind();
+    tileProgram_->bind();
+    tileProgram_->setUniformValue("viewProjection", vp);
+    tileProgram_->setUniformValue("light", light);
+    tileProgram_->setUniformValue("e2", float(kWgsF * (2.0 - kWgsF)));
+    tileProgram_->setUniformValue("under", 0);
+    tileProgram_->setUniformValue("over", 1);
+    tileProgram_->enableAttributeArray("grid");
+    tileProgram_->setAttributeBuffer("grid", GL_FLOAT, 0, 3, 3 * sizeof(float));
+    for (const Patch& p : patches) {
+        const double span = 288.0 / double(1 << p.key.level) * kDeg;
+        tileProgram_->setUniformValue("bounds", QVector4D(float(-kPi + p.key.col * span), float(kPi / 2 - p.key.row * span), float(span), float(span)));
+        tileProgram_->setUniformValue("skirt", float(0.02 * span));
+        tileProgram_->setUniformValue("hasUnder", p.under ? 1.0f : 0.0f);
+        tileProgram_->setUniformValue("hasOver", p.over ? 1.0f : 0.0f);
+        tileProgram_->setUniformValue("underRect", p.underRect);
+        tileProgram_->setUniformValue("overRect", p.overRect);
+        if (p.under) p.under->bind(0);
+        if (p.over) p.over->bind(1);
+        glDrawElements(GL_TRIANGLES, gridIndexCount_, GL_UNSIGNED_SHORT, nullptr);
+    }
+    tileProgram_->disableAttributeArray("grid");
+    tileProgram_->release();
+    gridIndex_.release();
+    grid_.release();
+    for (const GLenum unit : {GL_TEXTURE1, GL_TEXTURE0}) {
+        glActiveTexture(unit);
+        glBindTexture(GL_TEXTURE_2D, 0);
+    }
 }
 
 QVector3D GlobeView::target() const
@@ -395,7 +610,9 @@ void GlobeView::paintGL()
     glDepthMask(GL_TRUE);
     glDisable(GL_CULL_FACE);
     glDisable(GL_BLEND);
+    ++frame_;
     if (!pendingImage_.isNull()) uploadImage();
+    uploadTiles();
     if (linesChanged_) {
         lineBuffer_.bind();
         lineBuffer_.allocate(lineVertices_.data(), int(lineVertices_.size() * sizeof(QVector3D)));
@@ -403,31 +620,12 @@ void GlobeView::paintGL()
         linesChanged_ = false;
     }
 
-    // The Earth, lit from over the viewer's left shoulder
-    const int stride = kFloatsPerVertex * sizeof(float);
-    sphere_.bind();
-    sphereIndex_.bind();
-    earthProgram_->bind();
-    earthProgram_->setUniformValue("viewProjection", vp);
-    earthProgram_->setUniformValue("light", (eyeAt.normalized() + 0.5f * screenUp - 0.4f * east).normalized());
-    earthProgram_->setUniformValue("textured", textured_ ? 1.0f : 0.0f);
-    earthProgram_->setUniformValue("earth", 0);
-    if (texture_) texture_->bind(0);
-    for (const char* name : {"position", "normal", "texCoord"}) earthProgram_->enableAttributeArray(name);
-    earthProgram_->setAttributeBuffer("position", GL_FLOAT, 0, 3, stride);
-    earthProgram_->setAttributeBuffer("normal", GL_FLOAT, 3 * sizeof(float), 3, stride);
-    earthProgram_->setAttributeBuffer("texCoord", GL_FLOAT, 6 * sizeof(float), 2, stride);
-    glDrawElements(GL_TRIANGLES, sphereIndexCount_, GL_UNSIGNED_SHORT, nullptr);
-    for (const char* name : {"position", "normal", "texCoord"}) earthProgram_->disableAttributeArray(name);
-    if (texture_) texture_->release(0);
-    earthProgram_->release();
+    drawEarth(vp, (eyeAt.normalized() + 0.5f * screenUp - 0.4f * east).normalized());
 
     // Grid, orbits and lines of sight, hidden where the Earth stands in front of them
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
     glDepthMask(GL_FALSE);
-    sphereIndex_.release();
-    sphere_.release();
     lineBuffer_.bind();
     lineProgram_->bind();
     lineProgram_->setUniformValue("viewProjection", vp);
@@ -442,6 +640,7 @@ void GlobeView::paintGL()
     lineBuffer_.release();
 
     // The air, as a glow around the edge of the Earth
+    const int stride = kFloatsPerVertex * sizeof(float);
     sphere_.bind();
     sphereIndex_.bind();
     airProgram_->bind();
@@ -566,10 +765,12 @@ void GlobeView::drawOverlay(QPainter& p, const QMatrix4x4& vp)
         shadowed(dot + QPointF(11, line / 2.0 - 3), keys[i], QColor(230, 230, 230));
     }
     const double km = eyeHeight() * kWgsA / 1e3;
-    shadowed(QPointF(10, height() - 10), tr("Eye %1 km above the ground").arg(QLocale().toString(km, 'f', km < 100 ? 1 : 0)),
-             QColor(230, 230, 230));
-    if (textured_) {
-        const QString credit = tr("Imagery: NASA Blue Marble, from NASA GIBS");
+    QString state = tr("Eye %1 km above the ground").arg(QLocale().toString(km, 'f', km < 100 ? 1 : 0));
+    if (tiles_ && tiles_->offline()) state += tr("  ·  Offline: showing the imagery kept");
+    else if (tiles_ && tiles_->fetching() > 0) state += tr("  ·  Fetching %n tile(s) from NASA", nullptr, tiles_->fetching());
+    shadowed(QPointF(10, height() - 10), state, QColor(230, 230, 230));
+    if (textured_ || !textures_.empty()) {
+        const QString credit = tr("Imagery: NASA Blue Marble and Landsat (WELD), from NASA GIBS");
         shadowed(QPointF(width() - 10 - p.fontMetrics().horizontalAdvance(credit), height() - 10), credit, QColor(200, 200, 200));
     }
 }

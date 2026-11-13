@@ -41,6 +41,8 @@ qt_add_executable(GPSSim
     src/gui/SkyView.cpp
     src/gui/GlobeView.h
     src/gui/GlobeView.cpp
+    src/gui/TileStore.h
+    src/gui/TileStore.cpp
     src/gui/GlobeDialog.h
     src/gui/GlobeDialog.cpp
     src/gui/GlobeDialog.ui
