@@ -141,12 +141,14 @@ void main()
 }
 )";
 
+// lift raises lines on the ground just clear of it, so the ground never hides them
 const char* const kLineVertex = R"(
 attribute vec3 position;
 uniform mat4 viewProjection;
+uniform float lift;
 void main()
 {
-    gl_Position = viewProjection * vec4(position, 1.0);
+    gl_Position = viewProjection * vec4(position * (1.0 + lift), 1.0);
 }
 )";
 
@@ -184,7 +186,21 @@ GlobeView::~GlobeView()
     grid_.destroy();
     gridIndex_.destroy();
     lineBuffer_.destroy();
+    borderBuffer_.destroy();
     doneCurrent();
+}
+
+void GlobeView::setBorders(BorderLines lines)
+{
+    pendingBorders_ = std::move(lines);
+    bordersChanged_ = true;
+    update();
+}
+
+void GlobeView::setShowBorders(bool on)
+{
+    showBorders_ = on;
+    update();
 }
 
 void GlobeView::setEarthImage(const QImage& image)
@@ -388,6 +404,7 @@ void GlobeView::initializeGL()
     lineBuffer_.create();
     lineBuffer_.setUsagePattern(QOpenGLBuffer::DynamicDraw);
     linesChanged_ = true;
+    borderBuffer_.create();
 }
 
 // Uploaded row by row as it is, so the image's top row is at texture coordinate 0
@@ -619,6 +636,18 @@ void GlobeView::paintGL()
         lineBuffer_.release();
         linesChanged_ = false;
     }
+    if (bordersChanged_) {
+        // Countries, then states; kept on the card only
+        std::vector<QVector3D>& all = pendingBorders_.countries;
+        countryVertices_ = int(all.size());
+        all.insert(all.end(), pendingBorders_.states.begin(), pendingBorders_.states.end());
+        borderVertices_ = int(all.size());
+        borderBuffer_.bind();
+        borderBuffer_.allocate(all.data(), int(all.size() * sizeof(QVector3D)));
+        borderBuffer_.release();
+        pendingBorders_ = BorderLines();
+        bordersChanged_ = false;
+    }
 
     drawEarth(vp, (eyeAt.normalized() + 0.5f * screenUp - 0.4f * east).normalized());
 
@@ -629,15 +658,30 @@ void GlobeView::paintGL()
     lineBuffer_.bind();
     lineProgram_->bind();
     lineProgram_->setUniformValue("viewProjection", vp);
+    lineProgram_->setUniformValue("lift", 0.0f);
     lineProgram_->enableAttributeArray("position");
     lineProgram_->setAttributeBuffer("position", GL_FLOAT, 0, 3, sizeof(QVector3D));
     for (const Lines& l : lines_) {
         lineProgram_->setUniformValue("color", l.color);
         glDrawArrays(l.mode, l.first, l.count);
     }
+    lineBuffer_.release();
+    if (showsBorders()) {
+        // States fade out between 3000 and 8000 km up, where they would only crowd the view
+        const double km = eyeHeight() * kWgsA / 1e3, states = std::clamp((8000.0 - km) / 5000.0, 0.0, 1.0);
+        borderBuffer_.bind();
+        lineProgram_->setAttributeBuffer("position", GL_FLOAT, 0, 3, sizeof(QVector3D));
+        lineProgram_->setUniformValue("lift", float(std::max(2e-4 * eyeHeight(), 2e-6)));
+        if (states > 0) {
+            lineProgram_->setUniformValue("color", QColor(255, 255, 255, int(120 * states)));
+            glDrawArrays(GL_LINES, countryVertices_, borderVertices_ - countryVertices_);
+        }
+        lineProgram_->setUniformValue("color", QColor(255, 225, 120, 220));
+        glDrawArrays(GL_LINES, 0, countryVertices_);
+        borderBuffer_.release();
+    }
     lineProgram_->disableAttributeArray("position");
     lineProgram_->release();
-    lineBuffer_.release();
 
     // The air, as a glow around the edge of the Earth
     const int stride = kFloatsPerVertex * sizeof(float);
@@ -770,7 +814,8 @@ void GlobeView::drawOverlay(QPainter& p, const QMatrix4x4& vp)
     else if (tiles_ && tiles_->fetching() > 0) state += tr("  ·  Fetching %n tile(s) from NASA", nullptr, tiles_->fetching());
     shadowed(QPointF(10, height() - 10), state, QColor(230, 230, 230));
     if (textured_ || !textures_.empty()) {
-        const QString credit = tr("Imagery: NASA Blue Marble and Landsat (WELD), from NASA GIBS");
+        QString credit = tr("Imagery: NASA Blue Marble and Landsat (WELD), from NASA GIBS");
+        if (showsBorders()) credit += tr("  ·  Borders: Natural Earth");
         shadowed(QPointF(width() - 10 - p.fontMetrics().horizontalAdvance(credit), height() - 10), credit, QColor(200, 200, 200));
     }
 }

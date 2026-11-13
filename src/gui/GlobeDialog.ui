@@ -60,6 +60,19 @@
       </widget>
      </item>
      <item>
+      <widget class="QCheckBox" name="bordersCheck">
+       <property name="text">
+        <string>Borders</string>
+       </property>
+       <property name="toolTip">
+        <string>Country borders, and state and province borders nearer the ground, from Natural Earth</string>
+       </property>
+       <property name="checked">
+        <bool>true</bool>
+       </property>
+      </widget>
+     </item>
+     <item>
       <spacer name="controlsSpacer">
        <property name="orientation">
         <enum>Qt::Orientation::Horizontal</enum>

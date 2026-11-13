@@ -1,5 +1,6 @@
 #pragma once
 
+#include "BorderStore.h"
 #include "TileStore.h"
 #include "sim/Gps.h"
 
@@ -42,6 +43,10 @@ public:
     void setShowOrbits(bool on);
     void setShowSightLines(bool on);
     void setShowGrid(bool on);
+    // Country borders, and state and province borders, which fade out from afar
+    void setBorders(BorderLines lines);
+    void setShowBorders(bool on);
+    bool showsBorders() const { return showBorders_ && borderVertices_ > 0; }
     // Turns the globe to put the receiver in the middle
     void lookAtReceiver();
     // In edit mode the receiver's dot can be dragged. The view does not move it: it tells where to with receiverDragged,
@@ -126,6 +131,9 @@ private:
     bool linesChanged_ = true;
     QImage pendingImage_;          // waiting for the context
     bool textured_ = false;
+    BorderLines pendingBorders_;   // waiting for the context
+    bool bordersChanged_ = false, showBorders_ = true;
+    int countryVertices_ = 0, borderVertices_ = 0;
 
     // The eye looks at the ground at geocentric latitude camLat_ and longitude camLon_ (radians) from range_ Earth radii
     // away: straight down, or tilted tilt_ (radians) from there towards the northern horizon
@@ -146,7 +154,7 @@ private:
     std::unique_ptr<QOpenGLTexture> texture_; // the image from afar
     QOpenGLBuffer sphere_{QOpenGLBuffer::VertexBuffer}, sphereIndex_{QOpenGLBuffer::IndexBuffer};
     QOpenGLBuffer grid_{QOpenGLBuffer::VertexBuffer}, gridIndex_{QOpenGLBuffer::IndexBuffer};
-    QOpenGLBuffer lineBuffer_{QOpenGLBuffer::VertexBuffer};
+    QOpenGLBuffer lineBuffer_{QOpenGLBuffer::VertexBuffer}, borderBuffer_{QOpenGLBuffer::VertexBuffer};
     int sphereIndexCount_ = 0, gridIndexCount_ = 0;
     QString glError_;              // why nothing can be drawn
 };

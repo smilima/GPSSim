@@ -6,6 +6,7 @@
 
 #include <vector>
 
+class BorderStore;
 class QNetworkAccessManager;
 
 QT_BEGIN_NAMESPACE
@@ -42,6 +43,7 @@ protected:
 
 private:
     void loadImagery();
+    void loadBorders();
     void saveSettings() const;
     void showHint();               // how to move around, or in edit mode how to move the receiver
 
@@ -49,4 +51,6 @@ private:
     QNetworkAccessManager* net_ = nullptr;
     bool fetching_ = false;
     QString viewHint_;
+    QString imageryNote_, bordersNote_;    // on its way, or why it could not be had
+    BorderStore* borders_ = nullptr;
 };

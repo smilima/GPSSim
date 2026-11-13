@@ -91,6 +91,9 @@ where they are at the start. While a run goes on, the globe follows it, at the t
   to the receiver. Grey ones are below the mask. A satellite behind the Earth is hidden.
 * **Orbits** are drawn as they lie in space at that moment, so each passes through its satellite. *Grid* adds
   latitude and longitude every 15°.
+* **Borders.** Country borders are drawn in yellow, and state and province borders in white, which fade in from
+  8000 km down. They are Natural Earth's (public domain, at 1:10 million, so within about a kilometre), fetched once
+  (23 MB) the first time *Borders* is on, and kept in a compact form (4 MB).
 * **Moving around.** Drag with the left button to turn the globe: the ground under the pointer follows it. Drag up
   with the right button to tilt the view towards the northern horizon, turning about the ground in the middle, and
   down to look straight down again; tilted all the way, the lines of sight rise into the sky over the receiver. The
@@ -105,12 +108,17 @@ where they are at the start. While a run goes on, the globe follows it, at the t
   show: Blue Marble down to 490 m a pixel, then over land the Landsat mosaic of NASA's Web-Enabled Landsat Data
   (WELD) down to 31 m, where streets and fields show. Six tiles come at a time, the coarsest first, so the view fills
   in and then sharpens; the line at the bottom of the globe counts the tiles on their way.
-* **Offline.** Every image is kept in `%LOCALAPPDATA%\GPSSim\imagery` as it arrives (`tiles\bluemarble` and
-  `tiles\landsat`, by level, row and column, 20 to 75 kB a tile) and read from there first, so a place seen once shows
-  again just as sharp without a connection. Copy the folder to take the imagery to another computer. Without a
-  connection the line at the bottom says so, and places not seen before show the sharpest imagery kept around them,
-  or else the Blue Marble from afar, or plain blue. A tile is asked for again a minute after it could not be fetched.
-  A tile request names only the tile, which tells NASA which part of the Earth is being looked at.
+* **Offline.** Every image, and the borders, are kept in `GlobeData` next to `GPSSim.exe` as they arrive
+  (`blue_marble_4096.jpg`, `borders\borders.bin`, and `tiles\bluemarble` and `tiles\landsat` by level, row and column,
+  20 to 75 kB a tile) and read from there first, so a place seen once shows again just as sharp without a connection.
+  To take the globe to another computer, copy `GPSSim.exe` with its `GlobeData` folder: the static build needs
+  nothing else. Without a connection the line at the bottom says so, and places not seen before show the sharpest
+  imagery kept around them, or else the Blue Marble from afar, or plain blue. A tile is asked for again a minute
+  after it could not be fetched. A tile request names only the tile, which tells NASA which part of the Earth is being
+  looked at.
+* **Where else.** Where `GPSSim.exe`'s folder cannot be written, as under `Program Files`, the globe keeps its data in
+  `%LOCALAPPDATA%\GPSSim\imagery` instead. What earlier versions kept there moves to `GlobeData` the first time the
+  globe opens. Each build folder (Qt Creator's Debug and Release) has its own `GlobeData`.
 
 The globe's window keeps its size, place and check boxes.
 
