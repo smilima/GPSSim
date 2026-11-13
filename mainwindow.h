@@ -43,6 +43,7 @@ private slots:
     void showLocation();
     void onShowGlobe();
     void onReceiverMoved(double latDeg, double lonDeg);
+    void clearTrack();
     void onProgress(const sim::Progress &p);
     void onFinished(const QString &error);
     void onRadioChanged();
@@ -52,6 +53,8 @@ private:
     sim::Scenario scenario() const;
     QString loadAlmanac(const QString &path, bool setStart);
     void updateGlobe(bool turnToReceiver);
+    void showReceiverAt(const sim::Vec3 &ecef);
+    void restoreStart();
     void showRadio();
     void log(const QString &text);
     void loadSettings();
@@ -68,5 +71,7 @@ private:
     QNetworkAccessManager *net_ = nullptr;
     QNetworkReply *fetch_ = nullptr;     // the download of the current almanac, while it runs
     GlobeDialog *globe_ = nullptr;       // made the first time it is opened
+    double startLat_ = 0, startLon_ = 0, startAlt_ = 0;      // the scenario's start, while a run shows where the receiver is
+    std::vector<sim::Vec3> track_;       // where the receiver has been in the last run (ECEF)
 };
 #endif // MAINWINDOW_H

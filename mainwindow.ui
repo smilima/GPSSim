@@ -192,15 +192,12 @@ A height may follow, in metres or feet above the WGS-84 ellipsoid: 1650 m, 5413 
          <item row="0" column="0">
           <widget class="QLabel" name="scenarioBoxL3">
            <property name="text">
-            <string>Velocity east</string>
+            <string>Velocity east/west</string>
            </property>
           </widget>
          </item>
          <item row="0" column="1">
-          <widget class="QDoubleSpinBox" name="velEastSpin">
-           <property name="suffix">
-            <string> m/s</string>
-           </property>
+          <widget class="DirectionSpinBox" name="velEastSpin">
            <property name="decimals">
             <number>1</number>
            </property>
@@ -218,15 +215,12 @@ A height may follow, in metres or feet above the WGS-84 ellipsoid: 1650 m, 5413 
          <item row="1" column="0">
           <widget class="QLabel" name="scenarioBoxL4">
            <property name="text">
-            <string>Velocity north</string>
+            <string>Velocity north/south</string>
            </property>
           </widget>
          </item>
          <item row="1" column="1">
-          <widget class="QDoubleSpinBox" name="velNorthSpin">
-           <property name="suffix">
-            <string> m/s</string>
-           </property>
+          <widget class="DirectionSpinBox" name="velNorthSpin">
            <property name="decimals">
             <number>1</number>
            </property>
@@ -244,15 +238,12 @@ A height may follow, in metres or feet above the WGS-84 ellipsoid: 1650 m, 5413 
          <item row="2" column="0">
           <widget class="QLabel" name="scenarioBoxL5">
            <property name="text">
-            <string>Velocity up</string>
+            <string>Velocity up/down</string>
            </property>
           </widget>
          </item>
          <item row="2" column="1">
-          <widget class="QDoubleSpinBox" name="velUpSpin">
-           <property name="suffix">
-            <string> m/s</string>
-           </property>
+          <widget class="DirectionSpinBox" name="velUpSpin">
            <property name="decimals">
             <number>1</number>
            </property>
@@ -977,6 +968,11 @@ A height may follow, in metres or feet above the WGS-84 ellipsoid: 1650 m, 5413 
   </widget>
  </widget>
  <customwidgets>
+  <customwidget>
+   <class>DirectionSpinBox</class>
+   <extends>QDoubleSpinBox</extends>
+   <header>gui/DirectionSpinBox.h</header>
+  </customwidget>
   <customwidget>
    <class>SkyView</class>
    <extends>QWidget</extends>

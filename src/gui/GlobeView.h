@@ -52,6 +52,8 @@ public:
     void setCities(std::vector<City> cities);
     void setShowCities(bool on);
     bool showsCities() const { return showCities_ && !cities_.empty(); }
+    // Where the receiver has been (ECEF), drawn as a red path
+    void setTrack(const std::vector<sim::Vec3>& points);
     // Turns the globe to put the receiver in the middle
     void lookAtReceiver();
     // In edit mode the receiver's dot can be dragged. The view does not move it: it tells where to with receiverDragged,
@@ -132,6 +134,7 @@ private:
     sim::Vec3 receiver_{sim::kWgsA, 0, 0};
     bool showOrbits_ = true, showSight_ = true, showGrid_ = false;
     std::vector<Sat> sats_;
+    std::vector<QVector3D> track_;
     std::vector<QVector3D> lineVertices_;
     std::vector<Lines> lines_;
     bool linesChanged_ = true;

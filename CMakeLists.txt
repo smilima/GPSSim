@@ -47,6 +47,8 @@ qt_add_executable(GPSSim
     src/gui/BorderStore.cpp
     src/gui/CityStore.h
     src/gui/CityStore.cpp
+    src/gui/DirectionSpinBox.h
+    src/gui/DirectionSpinBox.cpp
     src/gui/GlobeDialog.h
     src/gui/GlobeDialog.cpp
     src/gui/GlobeDialog.ui

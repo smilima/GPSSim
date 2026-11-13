@@ -31,6 +31,8 @@ public:
     // The moment shown, and where the receiver is then (ECEF)
     void setMoment(int week, double tow, const sim::Vec3& receiver);
     void lookAtReceiver();
+    // Where the receiver has been in the run (ECEF), drawn as a path
+    void setTrack(const std::vector<sim::Vec3>& points);
     // Whether Edit may be pressed: not while a run goes on. Turning it off leaves edit mode.
     void setEditable(bool on);
 

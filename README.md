@@ -82,10 +82,22 @@ gpssim_cli --location "13T 476911 4429455 1650 m" --file GPS_sim-fs2_5-if0-int8i
 
 `--location` takes the same forms, in place of `--lat`, `--lon` and `--alt`.
 
+### A moving receiver
+
+The receiver moves from its start at the constant velocity in *Velocity east/west*, *north/south* and *up/down*. Each
+shows its direction in words, such as `5.0 m/s west`: type `5 w`, `5 west` or `-5` for west, `2 s` for south and
+`1 down` for down, and the arrows go through zero into the other direction. The motion is a straight line through
+space, so over long distances the receiver rises slowly above the curved ground.
+
+While a run goes on, the *Location* box shows where the receiver is, five times a simulated second, and the globe's
+red dot moves with it along a red path. When the run ends, the box shows the start again: the scenario keeps its
+start. The path stays on the globe until the start moves or the next run begins.
+
 ## The globe
 
 *Globe…*, beside *Height*, opens the scenario on a 3D globe: the Earth, the receiver, and every satellite simulated,
-where they are at the start. While a run goes on, the globe follows it, at the time simulated.
+where they are at the start. While a run goes on, the globe follows it, at the time simulated, and the receiver moves
+along a red path (see [A moving receiver](#a-moving-receiver)).
 
 * **Satellites** in green are above the elevation mask: these are the ones simulated, and a line of sight joins each
   to the receiver. Grey ones are below the mask. A satellite behind the Earth is hidden.

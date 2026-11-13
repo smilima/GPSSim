@@ -42,6 +42,9 @@ MainWindow::MainWindow(QWidget *parent)
 {
     ui->setupUi(this);
     qRegisterMetaType<sim::Progress>();
+    ui->velEastSpin->setDirections(tr("east"), tr("west"));
+    ui->velNorthSpin->setDirections(tr("north"), tr("south"));
+    ui->velUpSpin->setDirections(tr("up"), tr("down"));
     ui->satTable->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
 
     connect(ui->startButton, &QPushButton::clicked, this, &MainWindow::onStart);
@@ -81,7 +84,10 @@ MainWindow::MainWindow(QWidget *parent)
     // The globe follows the scenario: a new position turns it to the receiver
     connect(ui->globeButton, &QPushButton::clicked, this, &MainWindow::onShowGlobe);
     for (const QDoubleSpinBox *spin : {ui->latSpin, ui->lonSpin})
-        connect(spin, &QDoubleSpinBox::valueChanged, this, [this] { updateGlobe(true); });
+        connect(spin, &QDoubleSpinBox::valueChanged, this, [this] {
+            clearTrack();
+            updateGlobe(true);
+        });
     for (const QDoubleSpinBox *spin : {ui->altSpin, ui->maskSpin})
         connect(spin, &QDoubleSpinBox::valueChanged, this, [this] { updateGlobe(false); });
     for (const QSpinBox *spin : {ui->weekSpin, ui->towSpin})
@@ -103,6 +109,7 @@ void MainWindow::onShowGlobe()
         globe_->setEditable(!worker_);
     }
     updateGlobe(first);
+    globe_->setTrack(track_);
     globe_->show();
     globe_->raise();
     globe_->activateWindow();
@@ -117,7 +124,41 @@ void MainWindow::onReceiverMoved(double latDeg, double lonDeg)
         ui->lonSpin->setValue(lonDeg);
     }
     showLocation();
+    clearTrack();
     updateGlobe(false);
+}
+
+// The path of the last run, until the receiver's start moves or the next run begins
+void MainWindow::clearTrack()
+{
+    track_.clear();
+    if (globe_) globe_->setTrack(track_);
+}
+
+// While running, the Location box shows where the receiver is, from the start and the velocity
+void MainWindow::showReceiverAt(const Vec3 &ecef)
+{
+    double lat = 0, lon = 0, h = 0;
+    ecefToLlh(ecef, &lat, &lon, &h);
+    {
+        const QSignalBlocker blockLat(ui->latSpin), blockLon(ui->lonSpin), blockAlt(ui->altSpin);
+        ui->latSpin->setValue(lat * 180.0 / kPi);
+        ui->lonSpin->setValue(lon * 180.0 / kPi);
+        ui->altSpin->setValue(h);
+    }
+    showLocation();
+}
+
+// After a run the Location box shows the start again, which the scenario keeps
+void MainWindow::restoreStart()
+{
+    {
+        const QSignalBlocker blockLat(ui->latSpin), blockLon(ui->lonSpin), blockAlt(ui->altSpin);
+        ui->latSpin->setValue(startLat_);
+        ui->lonSpin->setValue(startLon_);
+        ui->altSpin->setValue(startAlt_);
+    }
+    showLocation();
 }
 
 // Shows the scenario's start on the globe. While running, the run moves it on.
@@ -165,6 +206,7 @@ void MainWindow::onLocationEdited()
     ui->altSpin->setValue(h);
     ui->locationFormatCombo->setCurrentIndex(int(format));
     showLocation();
+    clearTrack();
     updateGlobe(true);
 }
 
@@ -215,6 +257,7 @@ void MainWindow::closeEvent(QCloseEvent *event)
         worker_->wait();
         delete worker_;
         worker_ = nullptr;
+        restoreStart();      // the start is what is kept, not where the receiver had got to
     }
     if (fetch_) {
         fetch_->disconnect(this);
@@ -411,6 +454,10 @@ void MainWindow::onStart()
     }
 
     saveSettings();
+    startLat_ = ui->latSpin->value();
+    startLon_ = ui->lonSpin->value();
+    startAlt_ = ui->altSpin->value();
+    clearTrack();
     stop_ = false;
     ui->logEdit->clear();
     ui->progressBar->setRange(0, s.seconds > 0 ? 1000 : 0);
@@ -502,7 +549,12 @@ void MainWindow::onProgress(const Progress &p)
                                  .arg(p.seconds, 0, 'f', 1).arg(p.speed, 0, 'f', 1).arg(double(p.bytes) / 1e6, 0, 'f', 0)
                                  .arg(p.sats.size()).arg(p.clipped * 100.0, 0, 'f', 3));
     ui->skyView->setSatellites(p.sats);
-    if (globe_) globe_->setMoment(s.week, s.tow + p.seconds, p.truth);
+    track_.push_back(p.truth);
+    showReceiverAt(p.truth);
+    if (globe_) {
+        globe_->setTrack(track_);
+        globe_->setMoment(s.week, s.tow + p.seconds, p.truth);
+    }
     ui->satTable->setRowCount(int(p.sats.size()));
     for (int r = 0; r < int(p.sats.size()); ++r) {
         const SatStatus &t = p.sats[size_t(r)];
@@ -526,6 +578,8 @@ void MainWindow::onFinished(const QString &error)
     worker_ = nullptr;
     ui->progressBar->setRange(0, 1000);
     log(error.isEmpty() ? (stop_.load() ? tr("Stopped") : tr("Finished")) : tr("Failed: %1").arg(error));
+    restoreStart();
+    updateGlobe(false);      // the receiver back at the start; its path stays drawn
     updateControls();
 }
 

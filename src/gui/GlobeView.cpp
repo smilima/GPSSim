@@ -235,6 +235,14 @@ void GlobeView::setMoment(double tow, const Vec3& receiver)
     rebuild();
 }
 
+void GlobeView::setTrack(const std::vector<Vec3>& points)
+{
+    track_.clear();
+    track_.reserve(points.size());
+    for (const Vec3& p : points) track_.push_back(units(p));
+    rebuild();
+}
+
 void GlobeView::setShowOrbits(bool on)
 {
     showOrbits_ = on;
@@ -317,6 +325,7 @@ void GlobeView::rebuild()
             add(GL_LINE_STRIP, s.el >= mask_ ? QColor(120, 200, 255, 150) : QColor(120, 160, 220, 60), points);
         }
     }
+    if (track_.size() >= 2) add(GL_LINE_STRIP, QColor(kReceiver.red(), kReceiver.green(), kReceiver.blue(), 230), track_);
     if (showSight_) {
         points.clear();
         for (const Sat& s : sats_)

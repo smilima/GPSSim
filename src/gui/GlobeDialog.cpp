@@ -184,6 +184,11 @@ void GlobeDialog::lookAtReceiver()
     ui->globeView->lookAtReceiver();
 }
 
+void GlobeDialog::setTrack(const std::vector<Vec3>& points)
+{
+    ui->globeView->setTrack(points);
+}
+
 void GlobeDialog::showEvent(QShowEvent* event)
 {
     QDialog::showEvent(event);
