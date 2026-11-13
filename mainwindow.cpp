@@ -25,6 +25,7 @@
 #include <QTime>
 #include <QTimeZone>
 #include <QUrl>
+#include <QWindow>
 
 #include <cmath>
 #include <memory>
@@ -92,7 +93,12 @@ void MainWindow::onShowGlobe()
 {
     const bool first = !globe_;
     if (first) {
-        globe_ = new GlobeDialog(this);
+        // A window of its own rather than a child of this one: a QOpenGLWidget among this window's children makes Qt
+        // destroy and re-create this window as an OpenGL one, which shows as GPSSim closing and opening again. This
+        // window still owns it, so it stays in front, and deletes it.
+        globe_ = new GlobeDialog;
+        globe_->winId();
+        globe_->windowHandle()->setTransientParent(windowHandle());
         connect(globe_, &GlobeDialog::receiverMoved, this, &MainWindow::onReceiverMoved);
         globe_->setEditable(!worker_);
     }
@@ -198,6 +204,7 @@ void MainWindow::showRadio()
 
 MainWindow::~MainWindow()
 {
+    delete globe_;
     delete ui;
 }
 
