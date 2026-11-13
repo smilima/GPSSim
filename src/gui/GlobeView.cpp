@@ -1,5 +1,7 @@
 #include "GlobeView.h"
 
+#include <QCursor>
+#include <QLineF>
 #include <QLocale>
 #include <QMouseEvent>
 #include <QOpenGLShaderProgram>
@@ -18,9 +20,11 @@ namespace {
 
 constexpr double kDeg = kPi / 180.0;
 constexpr float kFov = 45.0f;                          // vertical field of view, degrees
-constexpr double kMinAltitude = 200e3 / kWgsA;         // how near the eye comes to the ground, in Earth radii: the imagery
-                                                       // is 10 km a pixel, so nearer shows only a blur
-constexpr double kMaxAltitude = 15.0;                  // far enough to see every orbit whole
+constexpr double kMinRange = 200e3 / kWgsA;            // how near the eye comes to the ground it looks at, in Earth radii:
+                                                       // the imagery is 10 km a pixel, so nearer shows only a blur
+constexpr double kMaxRange = 15.0;                     // far enough to see every orbit whole
+constexpr double kMaxTilt = 85.0 * kDeg;               // short of the horizon, so the eye stays above the ground
+constexpr double kTiltPerPixel = 0.3 * kDeg;
 constexpr float kAir = 1.05f;                          // the outer edge of the glow, in Earth radii: thicker than the air, to be seen
 constexpr float kAboveGround = 1.0003f;                // the grid floats this far out, about 2 km, clear of the surface
 constexpr int kOrbitSteps = 180;
@@ -31,6 +35,17 @@ const QColor kInView(90, 220, 130), kBelowMask(150, 150, 150), kReceiver(235, 60
 QVector3D units(const Vec3& p)
 {
     return QVector3D(float(p.x / kWgsA), float(p.y / kWgsA), float(p.z / kWgsA));
+}
+
+// Up from the ground at geocentric latitude lat and longitude lon, and north along it
+QVector3D upAt(double lat, double lon)
+{
+    return QVector3D(float(std::cos(lat) * std::cos(lon)), float(std::cos(lat) * std::sin(lon)), float(std::sin(lat)));
+}
+
+QVector3D northAt(double lat, double lon)
+{
+    return QVector3D(float(-std::sin(lat) * std::cos(lon)), float(-std::sin(lat) * std::sin(lon)), float(std::cos(lat)));
 }
 
 // How far the ground is from the centre of the Earth, in Earth radii, at geocentric latitude psi
@@ -126,6 +141,7 @@ GlobeView::GlobeView(QWidget* parent) : QOpenGLWidget(parent)
     f.setSamples(4);
     setFormat(f);
     setCursor(Qt::OpenHandCursor);
+    setContextMenuPolicy(Qt::PreventContextMenu);      // the right button tilts
     setMinimumSize(300, 240);
 }
 
@@ -184,6 +200,15 @@ void GlobeView::lookAtReceiver()
 {
     camLat_ = std::atan2(receiver_.z, std::hypot(receiver_.x, receiver_.y));
     camLon_ = std::atan2(receiver_.y, receiver_.x);
+    update();
+}
+
+void GlobeView::setEditing(bool on)
+{
+    editing_ = on;
+    movingReceiver_ = movingReceiver_ && on;
+    setMouseTracking(on);      // to show over the dot that it can be dragged
+    setIdleCursor(mapFromGlobal(QCursor::pos()));
     update();
 }
 
@@ -317,22 +342,35 @@ void GlobeView::uploadImage()
     textured_ = true;
 }
 
-QVector3D GlobeView::eye() const
+QVector3D GlobeView::target() const
 {
-    return float(groundRadius(camLat_) + altitude_) * QVector3D(float(std::cos(camLat_) * std::cos(camLon_)), float(std::cos(camLat_) * std::sin(camLon_)),
-                                        float(std::sin(camLat_)));
+    return float(groundRadius(camLat_)) * upAt(camLat_, camLon_);
 }
 
-QVector3D GlobeView::north() const
+// Above the target, swung back from the north by the tilt
+QVector3D GlobeView::eye() const
 {
-    return QVector3D(float(-std::sin(camLat_) * std::cos(camLon_)), float(-std::sin(camLat_) * std::sin(camLon_)), float(std::cos(camLat_)));
+    return target() + float(range_) * (float(std::cos(tilt_)) * upAt(camLat_, camLon_) - float(std::sin(tilt_)) * northAt(camLat_, camLon_));
+}
+
+QVector3D GlobeView::up() const
+{
+    return float(std::sin(tilt_)) * upAt(camLat_, camLon_) + float(std::cos(tilt_)) * northAt(camLat_, camLon_);
+}
+
+double GlobeView::eyeHeight() const
+{
+    const QVector3D e = eye();
+    return double(e.length()) - groundRadius(std::asin(std::clamp(double(e.z() / e.length()), -1.0, 1.0)));
 }
 
 QMatrix4x4 GlobeView::viewProjection() const
 {
+    // No ground is nearer than the eye's height, even with the view tilted towards the horizon
+    const QVector3D e = eye();
     QMatrix4x4 m;
-    m.perspective(kFov, float(width()) / float(std::max(1, height())), float(0.4 * altitude_), float(altitude_ + 7.0));
-    m.lookAt(eye(), QVector3D(), north());
+    m.perspective(kFov, float(width()) / float(std::max(1, height())), float(0.4 * std::max(eyeHeight(), 1e-4)), e.length() + 7.0f);
+    m.lookAt(e, target(), up());
     return m;
 }
 
@@ -346,7 +384,7 @@ void GlobeView::paintGL()
         return;
     }
     const QMatrix4x4 vp = viewProjection();
-    const QVector3D eyeAt = eye(), up = north(), east = QVector3D::crossProduct(up, eyeAt.normalized());
+    const QVector3D eyeAt = eye(), screenUp = up(), east = QVector3D::crossProduct(screenUp, eyeAt.normalized());
 
     painter.beginNativePainting();
     glViewport(0, 0, int(width() * devicePixelRatioF()), int(height() * devicePixelRatioF()));
@@ -371,7 +409,7 @@ void GlobeView::paintGL()
     sphereIndex_.bind();
     earthProgram_->bind();
     earthProgram_->setUniformValue("viewProjection", vp);
-    earthProgram_->setUniformValue("light", (eyeAt.normalized() + 0.5f * up - 0.4f * east).normalized());
+    earthProgram_->setUniformValue("light", (eyeAt.normalized() + 0.5f * screenUp - 0.4f * east).normalized());
     earthProgram_->setUniformValue("textured", textured_ ? 1.0f : 0.0f);
     earthProgram_->setUniformValue("earth", 0);
     if (texture_) texture_->bind(0);
@@ -437,6 +475,26 @@ bool GlobeView::toScreen(const QMatrix4x4& vp, const QVector3D& p, QPointF* at) 
     return true;
 }
 
+// Where the receiver shows; false when it is over the horizon or behind the camera
+bool GlobeView::receiverOnScreen(const QMatrix4x4& vp, QPointF* at) const
+{
+    const QVector3D rx = units(receiver_);
+    return QVector3D::dotProduct(rx.normalized(), eye() - rx) > 0 && toScreen(vp, rx, at);
+}
+
+bool GlobeView::overReceiver(const QPointF& pos) const
+{
+    QPointF at;
+    return receiverOnScreen(viewProjection(), &at) && QLineF(at, pos).length() <= 12.0;
+}
+
+// An open hand, or in edit mode over the receiver's dot, arrows to move it
+void GlobeView::setIdleCursor(const QPointF& pos)
+{
+    if (dragButton_ != Qt::NoButton) return;
+    setCursor(editing_ && overReceiver(pos) ? Qt::SizeAllCursor : Qt::OpenHandCursor);
+}
+
 // Whether the Earth stands between the camera and p
 bool GlobeView::behindEarth(const QVector3D& p) const
 {
@@ -463,10 +521,14 @@ void GlobeView::drawOverlay(QPainter& p, const QMatrix4x4& vp)
         p.drawText(at, text);
     };
 
-    // The receiver, unless it is over the horizon
+    // The receiver, unless it is over the horizon. In edit mode a ring shows it can be dragged.
     QPointF at;
-    const QVector3D rx = units(receiver_);
-    if (QVector3D::dotProduct(rx.normalized(), eye() - rx) > 0 && toScreen(vp, rx, &at)) {
+    if (receiverOnScreen(vp, &at)) {
+        if (editing_) {
+            p.setPen(QPen(QColor(255, 255, 255, 220), 2));
+            p.setBrush(Qt::NoBrush);
+            p.drawEllipse(at, 11, 11);
+        }
         p.setPen(QPen(Qt::white, 1.5));
         p.setBrush(kReceiver);
         p.drawEllipse(at, 6, 6);
@@ -503,7 +565,7 @@ void GlobeView::drawOverlay(QPainter& p, const QMatrix4x4& vp)
         p.drawEllipse(dot, 5, 5);
         shadowed(dot + QPointF(11, line / 2.0 - 3), keys[i], QColor(230, 230, 230));
     }
-    const double km = altitude_ * kWgsA / 1e3;
+    const double km = eyeHeight() * kWgsA / 1e3;
     shadowed(QPointF(10, height() - 10), tr("Eye %1 km above the ground").arg(QLocale().toString(km, 'f', km < 100 ? 1 : 0)),
              QColor(230, 230, 230));
     if (textured_) {
@@ -529,26 +591,66 @@ bool GlobeView::pick(const QPointF& pos, double* lat, double* lon) const
     return true;
 }
 
+// Where the line of sight under pos meets the WGS-84 ellipsoid (ECEF, metres)
+bool GlobeView::pickGround(const QPointF& pos, Vec3* ecef) const
+{
+    const QMatrix4x4 inverse = viewProjection().inverted();
+    const float x = float(2.0 * pos.x() / width() - 1.0), y = float(1.0 - 2.0 * pos.y() / height());
+    const QVector3D from = inverse.map(QVector3D(x, y, -1.0f)), to = inverse.map(QVector3D(x, y, 1.0f));
+    // Squeezed along the axis, the ellipsoid is the unit sphere
+    const double b = 1.0 - kWgsF;
+    const double o[3] = {from.x(), from.y(), from.z() / b};
+    double d[3] = {to.x() - from.x(), to.y() - from.y(), (to.z() - from.z()) / b};
+    const double n = std::sqrt(d[0] * d[0] + d[1] * d[1] + d[2] * d[2]);
+    for (double& v : d) v /= n;
+    const double half = o[0] * d[0] + o[1] * d[1] + o[2] * d[2], c = o[0] * o[0] + o[1] * o[1] + o[2] * o[2] - 1.0;
+    const double disc = half * half - c;
+    if (disc < 0) return false;
+    const double t = -half - std::sqrt(disc);
+    if (t < 0) return false;
+    *ecef = {(o[0] + t * d[0]) * kWgsA, (o[1] + t * d[1]) * kWgsA, (o[2] + t * d[2]) * b * kWgsA};
+    return true;
+}
+
 void GlobeView::mousePressEvent(QMouseEvent* event)
 {
-    if (event->button() != Qt::LeftButton) return QOpenGLWidget::mousePressEvent(event);
-    dragging_ = true;
+    if (dragButton_ != Qt::NoButton || (event->button() != Qt::LeftButton && event->button() != Qt::RightButton))
+        return QOpenGLWidget::mousePressEvent(event);
+    dragButton_ = event->button();
     lastMouse_ = event->position();
-    setCursor(Qt::ClosedHandCursor);
+    movingReceiver_ = editing_ && dragButton_ == Qt::LeftButton && overReceiver(lastMouse_);
+    setCursor(movingReceiver_ ? Qt::SizeAllCursor : dragButton_ == Qt::LeftButton ? Qt::ClosedHandCursor : Qt::SizeVerCursor);
 }
 
 void GlobeView::mouseMoveEvent(QMouseEvent* event)
 {
-    if (!dragging_) return QOpenGLWidget::mouseMoveEvent(event);
+    if (dragButton_ == Qt::NoButton) {
+        setIdleCursor(event->position());
+        return QOpenGLWidget::mouseMoveEvent(event);
+    }
     const QPointF pos = event->position();
+    if (movingReceiver_) {
+        // The receiver goes to the ground under the pointer, at its own height; the globe stays still
+        Vec3 ground;
+        double lat = 0, lon = 0, h = 0;
+        if (pickGround(pos, &ground)) {
+            ecefToLlh(ground, &lat, &lon, &h);
+            emit receiverDragged(lat / kDeg, lon / kDeg);
+        }
+        lastMouse_ = pos;
+        return;
+    }
     double lat0 = 0, lon0 = 0, lat1 = 0, lon1 = 0;
-    if (pick(lastMouse_, &lat0, &lon0) && pick(pos, &lat1, &lon1)) {
+    if (dragButton_ == Qt::RightButton) {
+        // Up tilts the view towards the horizon, down back to straight down
+        tilt_ = std::clamp(tilt_ - (pos.y() - lastMouse_.y()) * kTiltPerPixel, 0.0, kMaxTilt);
+    } else if (pick(lastMouse_, &lat0, &lon0) && pick(pos, &lat1, &lon1)) {
         // The ground that was under the pointer follows it
         camLat_ += lat0 - lat1;
         camLon_ += std::remainder(lon0 - lon1, 2.0 * kPi);
     } else {
         // Off the Earth: turn by about the angle the view spans
-        const double perPixel = std::min(2.0 * std::tan(kFov / 2.0 * kDeg) * altitude_, 2.5) / std::max(1, height());
+        const double perPixel = std::min(2.0 * std::tan(kFov / 2.0 * kDeg) * range_, 2.5) / std::max(1, height());
         camLon_ -= (pos.x() - lastMouse_.x()) * perPixel;
         camLat_ += (pos.y() - lastMouse_.y()) * perPixel;
     }
@@ -560,17 +662,18 @@ void GlobeView::mouseMoveEvent(QMouseEvent* event)
 
 void GlobeView::mouseReleaseEvent(QMouseEvent* event)
 {
-    if (event->button() != Qt::LeftButton) return QOpenGLWidget::mouseReleaseEvent(event);
-    dragging_ = false;
-    setCursor(Qt::OpenHandCursor);
+    if (event->button() != dragButton_) return QOpenGLWidget::mouseReleaseEvent(event);
+    dragButton_ = Qt::NoButton;
+    movingReceiver_ = false;
+    setIdleCursor(event->position());
 }
 
-// Each notch of the wheel takes the eye 15 % nearer the ground, or back
+// Each notch of the wheel takes the eye 15 % nearer the ground it looks at, or back
 void GlobeView::wheelEvent(QWheelEvent* event)
 {
     const double steps = event->angleDelta().y() / 120.0;
     if (steps == 0) return QOpenGLWidget::wheelEvent(event);
-    altitude_ = std::clamp(altitude_ * std::pow(0.85, steps), kMinAltitude, kMaxAltitude);
+    range_ = std::clamp(range_ * std::pow(0.85, steps), kMinRange, kMaxRange);
     event->accept();
     update();
 }

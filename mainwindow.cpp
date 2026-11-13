@@ -91,11 +91,27 @@ MainWindow::MainWindow(QWidget *parent)
 void MainWindow::onShowGlobe()
 {
     const bool first = !globe_;
-    if (first) globe_ = new GlobeDialog(this);
+    if (first) {
+        globe_ = new GlobeDialog(this);
+        connect(globe_, &GlobeDialog::receiverMoved, this, &MainWindow::onReceiverMoved);
+        globe_->setEditable(!worker_);
+    }
     updateGlobe(first);
     globe_->show();
     globe_->raise();
     globe_->activateWindow();
+}
+
+// The receiver dragged on the globe, in its edit mode. The globe stays where it is, under the pointer.
+void MainWindow::onReceiverMoved(double latDeg, double lonDeg)
+{
+    {
+        const QSignalBlocker blockLat(ui->latSpin), blockLon(ui->lonSpin);
+        ui->latSpin->setValue(latDeg);
+        ui->lonSpin->setValue(lonDeg);
+    }
+    showLocation();
+    updateGlobe(false);
 }
 
 // Shows the scenario's start on the globe. While running, the run moves it on.
@@ -235,6 +251,7 @@ void MainWindow::updateControls()
     for (QWidget *w : {static_cast<QWidget *>(ui->locationEdit), static_cast<QWidget *>(ui->locationFormatCombo),
                        static_cast<QWidget *>(ui->latSpin), static_cast<QWidget *>(ui->lonSpin), static_cast<QWidget *>(ui->altSpin)})
         w->setEnabled(!running);      // the globe stays at hand
+    if (globe_) globe_->setEditable(!running);
     ui->scenarioBox->setEnabled(!running);
     ui->signalBox->setEnabled(!running);
     ui->outputBox->setEnabled(!running);

@@ -17,7 +17,8 @@ class QOpenGLShaderProgram;
 class QOpenGLTexture;
 
 // The Earth, the receiver and the satellites in 3D, in the Earth-fixed frame of the moment shown. Dragging with the
-// left button turns the globe, and the wheel zooms.
+// left button turns the globe, dragging with the right tilts the view, and the wheel zooms. In edit mode, dragging the
+// receiver's red dot moves the receiver instead.
 class GlobeView : public QOpenGLWidget, protected QOpenGLFunctions
 {
     Q_OBJECT
@@ -38,6 +39,13 @@ public:
     void setShowGrid(bool on);
     // Turns the globe to put the receiver in the middle
     void lookAtReceiver();
+    // In edit mode the receiver's dot can be dragged. The view does not move it: it tells where to with receiverDragged,
+    // and the receiver moves when setMoment says so.
+    void setEditing(bool on);
+
+signals:
+    // The receiver's dot was dragged over this geodetic latitude and longitude, in degrees
+    void receiverDragged(double latDeg, double lonDeg);
 
 protected:
     void initializeGL() override;
@@ -64,12 +72,18 @@ private:
 
     void rebuild();                // the satellites and the lines, for the moment shown
     void uploadImage();
+    QVector3D target() const;      // the ground in the middle of the view
     QVector3D eye() const;
-    QVector3D north() const;       // up on the screen
+    QVector3D up() const;          // up on the screen
+    double eyeHeight() const;      // above the ground, in Earth radii
     QMatrix4x4 viewProjection() const;
     bool pick(const QPointF& pos, double* lat, double* lon) const;
+    bool pickGround(const QPointF& pos, sim::Vec3* ecef) const;
     bool behindEarth(const QVector3D& p) const;
     bool toScreen(const QMatrix4x4& vp, const QVector3D& p, QPointF* at) const;
+    bool receiverOnScreen(const QMatrix4x4& vp, QPointF* at) const;
+    bool overReceiver(const QPointF& pos) const;
+    void setIdleCursor(const QPointF& pos);
     void drawOverlay(QPainter& p, const QMatrix4x4& vp);
 
     // What is shown
@@ -84,11 +98,13 @@ private:
     QImage pendingImage_;          // waiting for the context
     bool textured_ = false;
 
-    // The eye looks at the centre of the Earth from altitude_ Earth radii above the ground at geocentric latitude camLat_
-    // and longitude camLon_ (radians)
-    double camLat_ = 0, camLon_ = 0, altitude_ = 10;
+    // The eye looks at the ground at geocentric latitude camLat_ and longitude camLon_ (radians) from range_ Earth radii
+    // away: straight down, or tilted tilt_ (radians) from there towards the northern horizon
+    double camLat_ = 0, camLon_ = 0, range_ = 10, tilt_ = 0;
     QPointF lastMouse_;
-    bool dragging_ = false;
+    Qt::MouseButton dragButton_ = Qt::NoButton;     // the left turns the globe, the right tilts the view
+    bool editing_ = false;
+    bool movingReceiver_ = false;                   // the left drags the receiver's dot, in edit mode
 
     std::unique_ptr<QOpenGLShaderProgram> earthProgram_, airProgram_, lineProgram_;
     std::unique_ptr<QOpenGLTexture> texture_;

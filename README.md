@@ -91,9 +91,15 @@ where they are at the start. While a run goes on, the globe follows it, at the t
   to the receiver. Grey ones are below the mask. A satellite behind the Earth is hidden.
 * **Orbits** are drawn as they lie in space at that moment, so each passes through its satellite. *Grid* adds
   latitude and longitude every 15°.
-* **Moving around.** Drag with the left button to turn the globe: the ground under the pointer follows it. The wheel
-  zooms, from 15 Earth radii out, where every orbit shows whole, to 200 km above the ground. *Go to Receiver* turns
-  the receiver back to the middle, and so does a new position.
+* **Moving around.** Drag with the left button to turn the globe: the ground under the pointer follows it. Drag up
+  with the right button to tilt the view towards the northern horizon, turning about the ground in the middle, and
+  down to look straight down again; tilted all the way, the lines of sight rise into the sky over the receiver. The
+  wheel zooms, from 15 Earth radii out, where every orbit shows whole, to 200 km from the ground in the middle.
+  *Go to Receiver* turns the receiver back to the middle, and so does a new position; the tilt stays.
+* **Moving the receiver.** Press *Edit*, which then reads *View*, and drag the receiver's red dot, ringed in white:
+  the receiver goes to the ground under the pointer, keeping its height, and *Position*, *Latitude, longitude* follow
+  as it goes. The globe stays still meanwhile; dragging anywhere else still turns it. Press *View* to only look
+  again. Edit is off while a run goes on, and each time the window opens.
 * **Imagery.** The Earth is NASA's Blue Marble, 4096 × 2048 pixels, fetched from NASA's GIBS map service the first
   time the globe opens (0.7 MB) and kept in `%LOCALAPPDATA%\GPSSim\imagery`. The request is the same whole-Earth
   image for everyone: nothing of the scenario goes with it. Each pixel is about 10 km, so the ground blurs below a few

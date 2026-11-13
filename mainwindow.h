@@ -42,6 +42,7 @@ private slots:
     void onLocationEdited();
     void showLocation();
     void onShowGlobe();
+    void onReceiverMoved(double latDeg, double lonDeg);
     void onProgress(const sim::Progress &p);
     void onFinished(const QString &error);
     void onRadioChanged();

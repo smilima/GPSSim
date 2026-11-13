@@ -44,6 +44,7 @@ qt_add_executable(GPSSim
     src/gui/GlobeDialog.h
     src/gui/GlobeDialog.cpp
     src/gui/GlobeDialog.ui
+    src/sim/EthernetShare.h src/sim/UDP_rx_commands.h
 )
 qt_add_resources(GPSSim "icon"
     PREFIX "/"

@@ -17,7 +17,7 @@
    <item>
     <widget class="GlobeView" name="globeView">
      <property name="toolTip">
-      <string>Drag with the left button to turn the globe; the wheel zooms</string>
+      <string>Drag with the left button to turn the globe, and with the right to tilt the view; the wheel zooms</string>
      </property>
     </widget>
    </item>
@@ -93,6 +93,22 @@
       </spacer>
      </item>
      <item>
+      <widget class="QPushButton" name="editButton">
+       <property name="text">
+        <string>Edit</string>
+       </property>
+       <property name="toolTip">
+        <string>Edit: move the receiver by dragging its red dot. View: only look again.</string>
+       </property>
+       <property name="checkable">
+        <bool>true</bool>
+       </property>
+       <property name="autoDefault">
+        <bool>false</bool>
+       </property>
+      </widget>
+     </item>
+     <item>
       <widget class="QPushButton" name="receiverButton">
        <property name="text">
         <string>Go to Receiver</string>
@@ -120,7 +136,7 @@
    <item>
     <widget class="QLabel" name="statusLabel">
      <property name="text">
-      <string>Drag with the left button to turn the globe; the wheel zooms.</string>
+      <string>Drag with the left button to turn the globe, and with the right to tilt the view towards the horizon; the wheel zooms.</string>
      </property>
      <property name="wordWrap">
       <bool>true</bool>

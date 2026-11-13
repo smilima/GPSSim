@@ -15,7 +15,7 @@ class GlobeDialog;
 QT_END_NAMESPACE
 
 // A window with the scenario on a 3D globe: the Earth, the receiver, and the satellites with their orbits. The Earth's
-// imagery is fetched from NASA the first time, and kept.
+// imagery is fetched from NASA the first time, and kept. In edit mode the receiver can be dragged to a new place.
 class GlobeDialog : public QDialog
 {
     Q_OBJECT
@@ -29,6 +29,12 @@ public:
     // The moment shown, and where the receiver is then (ECEF)
     void setMoment(int week, double tow, const sim::Vec3& receiver);
     void lookAtReceiver();
+    // Whether Edit may be pressed: not while a run goes on. Turning it off leaves edit mode.
+    void setEditable(bool on);
+
+signals:
+    // In edit mode the receiver's dot was dragged over this geodetic latitude and longitude, in degrees
+    void receiverMoved(double latDeg, double lonDeg);
 
 protected:
     void showEvent(QShowEvent* event) override;
@@ -37,8 +43,10 @@ protected:
 private:
     void loadImagery();
     void saveSettings() const;
+    void showHint();               // how to move around, or in edit mode how to move the receiver
 
     Ui::GlobeDialog* ui;
     QNetworkAccessManager* net_ = nullptr;
     bool fetching_ = false;
+    QString viewHint_;
 };

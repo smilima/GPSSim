@@ -49,6 +49,28 @@ GlobeDialog::GlobeDialog(QWidget* parent) : QDialog(parent), ui(new Ui::GlobeDia
     connect(ui->gridCheck, &QCheckBox::toggled, ui->globeView, &GlobeView::setShowGrid);
     connect(ui->receiverButton, &QPushButton::clicked, ui->globeView, &GlobeView::lookAtReceiver);
     connect(ui->closeButton, &QPushButton::clicked, this, &QDialog::close);
+
+    // Edit mode: the button reads View until pressed again
+    viewHint_ = ui->statusLabel->text();
+    connect(ui->editButton, &QPushButton::toggled, this, [this](bool on) {
+        ui->editButton->setText(on ? tr("View") : tr("Edit"));
+        ui->globeView->setEditing(on);
+        if (!fetching_) showHint();
+    });
+    connect(ui->globeView, &GlobeView::receiverDragged, this, &GlobeDialog::receiverMoved);
+}
+
+void GlobeDialog::setEditable(bool on)
+{
+    if (!on) ui->editButton->setChecked(false);
+    ui->editButton->setEnabled(on);
+}
+
+void GlobeDialog::showHint()
+{
+    ui->statusLabel->setText(ui->editButton->isChecked()
+                                 ? tr("Edit: drag the red dot to move the receiver; its height stays. Press View to only look again.")
+                                 : viewHint_);
 }
 
 GlobeDialog::~GlobeDialog()
@@ -84,6 +106,7 @@ void GlobeDialog::showEvent(QShowEvent* event)
 
 void GlobeDialog::hideEvent(QHideEvent* event)
 {
+    ui->editButton->setChecked(false);      // it opens again to look
     saveSettings();
     QDialog::hideEvent(event);
 }
@@ -112,9 +135,8 @@ void GlobeDialog::loadImagery()
     request.setHeader(QNetworkRequest::UserAgentHeader, QStringLiteral("GPSSim"));
     QNetworkReply* reply = net_->get(request);
     fetching_ = true;
-    const QString hint = ui->statusLabel->text();
     ui->statusLabel->setText(tr("Fetching the Earth's imagery from NASA (0.7 MB)…"));
-    connect(reply, &QNetworkReply::finished, this, [this, reply, path, hint] {
+    connect(reply, &QNetworkReply::finished, this, [this, reply, path] {
         reply->deleteLater();
         fetching_ = false;
         const QByteArray data = reply->readAll();
@@ -131,6 +153,6 @@ void GlobeDialog::loadImagery()
         QSaveFile file(path);
         if (file.open(QIODevice::WriteOnly) && file.write(data) == data.size()) file.commit();
         ui->globeView->setEarthImage(image);
-        ui->statusLabel->setText(hint);
+        showHint();
     });
 }
