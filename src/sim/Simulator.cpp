@@ -191,6 +191,12 @@ QString suggestedFileName(const Scenario& s)
     return QStringLiteral("GPS_sim-fs%1-if%2-%3.bin").arg(fs, fif.isEmpty() ? QStringLiteral("0") : fif, fmt);
 }
 
+std::vector<Ephemeris> scenarioSatellites(const Scenario& s)
+{
+    const int toe = std::clamp(int(std::round(s.tow / 7200.0)) * 7200, 0, 597600);
+    return s.almanac.empty() ? makeConstellation(s.week, toe) : ephemerisFromAlmanac(s.almanac, s.week, toe);
+}
+
 QString runSimulation(const Scenario& s, IqSink& sink, const std::atomic<bool>& stop,
                       const std::function<void(const Progress&)>& progress)
 {
@@ -205,8 +211,7 @@ QString runSimulation(const Scenario& s, IqSink& sink, const std::atomic<bool>& 
     sc.vel = enuToEcef(sc.lat, sc.lon, s.velEast, s.velNorth, s.velUp);
     sc.iono = defaultIono();
     sc.leapSeconds = leapSeconds(s.week, s.tow);
-    const int toe = std::clamp(int(std::round(s.tow / 7200.0)) * 7200, 0, 597600);
-    sc.sats = s.almanac.empty() ? makeConstellation(s.week, toe) : ephemerisFromAlmanac(s.almanac, s.week, toe);
+    sc.sats = scenarioSatellites(s);
 
     std::vector<std::unique_ptr<SatSignal>> satSignals;
     for (const Ephemeris& e : sc.sats)

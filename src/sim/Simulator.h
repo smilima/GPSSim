@@ -80,6 +80,10 @@ public:
     virtual QString error() const = 0;
 };
 
+// The satellites a scenario simulates, indexed by PRN - 1 with PRN 0 where there is none: the healthy ones of its
+// almanac, or the made-up constellation, with their ephemeris reference time the even hour nearest the start
+std::vector<Ephemeris> scenarioSatellites(const Scenario& s);
+
 // Generates the signal and hands it to the sink, on the calling thread (and a pool for the satellites), until the end of
 // the scenario or until stop is set. Returns an error message, empty on success.
 QString runSimulation(const Scenario& s, IqSink& sink, const std::atomic<bool>& stop,

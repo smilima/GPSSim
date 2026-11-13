@@ -2,6 +2,7 @@
 //
 //   gpssim_cli [--file out.bin] [--port 5555] [--seconds N] [--fs Hz] [--if Hz] [--format int8iq|int16iq|int8|int16]
 //              [--cn0 dB-Hz] [--lat deg] [--lon deg] [--alt m] [--week N] [--tow s] [--no-iono] [--no-tropo]
+//              [--location "13T 476911 4429455 1650 m"]      (in place of --lat, --lon and --alt: degrees, UTM, MGRS or ECEF)
 //              [--start 2026-11-07T19:50:00|now]      (UTC, in place of --week and --tow)
 //              [--almanac file.alm]      (YUMA; the start is its reference time unless --start, --week or --tow is given)
 //              [--usrp] [--usrp-args addr=192.168.10.2] [--uhd-library uhd.dll]
@@ -12,6 +13,7 @@
 #include "sim/GpsTime.h"
 #include "sim/HackRfOutput.h"
 #include "sim/IqOutput.h"
+#include "sim/Location.h"
 #include "sim/UsrpOutput.h"
 
 #include <QCoreApplication>
@@ -63,6 +65,14 @@ int main(int argc, char** argv)
         else if (args[i - 1] == "--lat") s.latDeg = v.toDouble();
         else if (args[i - 1] == "--lon") s.lonDeg = v.toDouble();
         else if (args[i - 1] == "--alt") s.altM = v.toDouble();
+        else if (args[i - 1] == "--location") {
+            const QString error = parseLocation(v, &s.latDeg, &s.lonDeg, &s.altM);
+            if (!error.isEmpty()) {
+                std::printf("--location: %s\n", qPrintable(error));
+                return 1;
+            }
+            std::printf("Location: %s\n", qPrintable(formatLocation(LocationFormat::Degrees, s.latDeg, s.lonDeg, s.altM)));
+        }
         else if (args[i - 1] == "--week") { s.week = v.toInt(); weekGiven = true; }
         else if (args[i - 1] == "--tow") { s.tow = v.toInt(); towGiven = true; }
         else if (args[i - 1] == "--almanac") almanacPath = v;

@@ -155,6 +155,19 @@ Vec3 llhToEcef(double lat, double lon, double h)
     return {(n + h) * c * std::cos(lon), (n + h) * c * std::sin(lon), (n * (1.0 - e2) + h) * s};
 }
 
+void ecefToLlh(const Vec3& p, double* lat, double* lon, double* h)
+{
+    const double e2 = kWgsF * (2.0 - kWgsF), r = std::hypot(p.x, p.y);
+    double phi = std::atan2(p.z, r * (1.0 - e2)), s = std::sin(phi);
+    for (int i = 0; i < 10; ++i) {      // each pass gains more than two digits near the surface
+        phi = std::atan2(p.z + e2 * kWgsA / std::sqrt(1.0 - e2 * s * s) * s, r);
+        s = std::sin(phi);
+    }
+    *lat = phi;
+    *lon = std::atan2(p.y, p.x);
+    *h = r * std::cos(phi) + p.z * s - kWgsA * std::sqrt(1.0 - e2 * s * s);
+}
+
 Vec3 enuToEcef(double lat, double lon, double e, double n, double u)
 {
     const double sp = std::sin(lat), cp = std::cos(lat), sl = std::sin(lon), cl = std::cos(lon);

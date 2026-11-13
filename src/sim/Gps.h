@@ -60,6 +60,7 @@ Vec3 satPosition(const Ephemeris& e, double t);
 double satClock(const Ephemeris& e, double t);
 
 Vec3 llhToEcef(double lat, double lon, double h);
+void ecefToLlh(const Vec3& p, double* lat, double* lon, double* h);
 Vec3 enuToEcef(double lat, double lon, double e, double n, double u);
 void azEl(double lat, double lon, const Vec3& rx, const Vec3& sat, double* az, double* el);
 

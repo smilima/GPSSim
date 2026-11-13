@@ -18,7 +18,8 @@ only for its radio.
 | `hackrf.dll` and `libusb-1.0.dll` | transmitting from a HackRF One | `third_party/hackrf/windows_x64/` | built from the HackRF sources: [Getting hackrf.dll](#getting-hackrfdll) |
 | Python 3 with Pillow | only redrawing the icon (`resources/make_icon.py`) | | <https://www.python.org/>, then `pip install pillow` |
 
-* **Qt.** Only Qt Base's modules are used (Core, Gui, Widgets, Concurrent and Network), so no add-ons are needed. GPSSim
+* **Qt.** Only Qt Base's modules are used (Core, Gui, Widgets, OpenGL, OpenGL Widgets, Concurrent and Network), so no
+  add-ons are needed. The globe draws with OpenGL, which any graphics driver of the last fifteen years provides. GPSSim
   was written with Qt 6.11.2 and MinGW 13.1, in a static build of Qt, whose programs run on their own. The installer's
   Qt is a shared build: the programs run from Qt Creator, and to run one anywhere else, `windeployqt GPSSim.exe` copies
   Qt's DLLs next to it.
@@ -48,6 +49,59 @@ gpssim_cli --port 5555 --seconds 120
 gnss_cli --tcp 127.0.0.1:5555 --gnss gps --seconds 100
 ```
 
+## Start position
+
+The *Location* box holds the receiver's start. Type or paste it into *Position* in whichever way it is written, and
+press Enter:
+
+| Written as | For example |
+|---|---|
+| Decimal degrees | `40.014984, -105.270546` |
+| Degrees and minutes | `40° 00.899' N, 105° 16.233' W` |
+| Degrees, minutes and seconds | `40°00'53.94"N 105°16'13.97"W` |
+| UTM | `13T 476911 4429455` |
+| MGRS | `13TDE 76911 29455` |
+| ECEF X, Y and Z, in metres | `-1288678.58, -4720147.72, 4080320.87` |
+
+A height may follow, in metres or in feet (`1650 m`, `5413 ft`); without one the height stays as it was. Heights are
+above the WGS-84 ellipsoid, not above sea level. *Latitude, longitude* and *Height* follow the Position, and it follows
+them. The list beside it chooses the way the position is written, and goes to the way a position was typed.
+
+* **Degrees.** The latitude comes first unless N, S, E and W say otherwise. The marks may be left out
+  (`40 00 53.94 N 105 16 13.97 W`), and a longitude may run to 360°.
+* **UTM.** The letter is the latitude band. N and S are also read as the hemisphere when the northing is not in that
+  band, and `13 North 476911 4429455` says it outright. UTM and MGRS reach from 80° S to 84° N: nearer the poles the
+  position is written in degrees.
+* **MGRS.** A position is the south-west corner of its square, at any precision from 100 km (`13TDE`) to 1 m.
+* **ECEF** is three numbers more than 1000 km from the centre of the Earth, or marked `X`, `Y` and `Z`.
+* A position that cannot be read turns red, and the log says why. The position stays as it was.
+
+```bash
+gpssim_cli --location "13T 476911 4429455 1650 m" --file GPS_sim-fs2_5-if0-int8iq.bin --fs 2.5e6 --seconds 60
+```
+
+`--location` takes the same forms, in place of `--lat`, `--lon` and `--alt`.
+
+## The globe
+
+*Globe…*, beside *Height*, opens the scenario on a 3D globe: the Earth, the receiver, and every satellite simulated,
+where they are at the start. While a run goes on, the globe follows it, at the time simulated.
+
+* **Satellites** in green are above the elevation mask: these are the ones simulated, and a line of sight joins each
+  to the receiver. Grey ones are below the mask. A satellite behind the Earth is hidden.
+* **Orbits** are drawn as they lie in space at that moment, so each passes through its satellite. *Grid* adds
+  latitude and longitude every 15°.
+* **Moving around.** Drag with the left button to turn the globe: the ground under the pointer follows it. The wheel
+  zooms, from 15 Earth radii out, where every orbit shows whole, to 200 km above the ground. *Go to Receiver* turns
+  the receiver back to the middle, and so does a new position.
+* **Imagery.** The Earth is NASA's Blue Marble, 4096 × 2048 pixels, fetched from NASA's GIBS map service the first
+  time the globe opens (0.7 MB) and kept in `%LOCALAPPDATA%\GPSSim\imagery`. The request is the same whole-Earth
+  image for everyone: nothing of the scenario goes with it. Each pixel is about 10 km, so the ground blurs below a few
+  hundred kilometres. Without a connection the Earth is plain blue, and the imagery is fetched again the next time the
+  globe opens.
+
+The globe's window keeps its size, place and check boxes.
+
 ## Start time
 
 Set the start as a UTC date and time in *Start (UTC)*, or as *GPS week* and *Start time of week*: each follows the
@@ -63,9 +117,12 @@ receiver shows the date modulo 1024 weeks, as with real signals: SoftGpsReceiver
 
 ## Simulating a real almanac
 
-By default GPSSim makes up its satellites. To simulate the real constellation instead, press *Load…* next to *Almanac*
-and choose a YUMA almanac, such as the current one from the US Coast Guard Navigation Center
-(<https://www.navcen.uscg.gov/gps-nanus-almanacs-opsadvisories-sof>). *Clear* goes back to the made-up satellites.
+By default GPSSim makes up its satellites. To simulate the real constellation instead, press *Fetch Latest…* next to
+*Almanac*: it downloads the current YUMA almanac from the US Coast Guard Navigation Center
+(<https://www.navcen.uscg.gov/gps-nanus-almanacs-opsadvisories-sof>) and loads it. The download is kept in
+`%LOCALAPPDATA%\GPSSim\almanacs`, named by its week and reference time, such as `yuma_week2444_589824.alm`, and is
+loaded again the next time GPSSim starts. *Load…* takes any other YUMA almanac from a file, and *Clear* goes back to
+the made-up satellites.
 
 ```bash
 gpssim_cli --almanac current_yuma.alm --file GPS_sim-fs2_5-if0-int8iq.bin --fs 2.5e6 --seconds 60

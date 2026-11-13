@@ -1,22 +1,988 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<ui version="4.0"><class>MainWindow</class>
-<widget class="QMainWindow" name="MainWindow">
-<property name="geometry"><rect><x>0</x><y>0</y><width>1600</width><height>760</height></rect></property>
-<property name="windowTitle"><string>GPSSim</string></property>
-<widget class="QWidget" name="centralwidget"><layout class="QHBoxLayout" name="mainLayout" stretch="0,0,1">
-<item><layout class="QVBoxLayout" name="leftColumn">
-<item><widget class="QGroupBox" name="scenarioBox"><property name="title"><string>Scenario</string></property><layout class="QFormLayout" name="scenarioBoxForm"><item row="0" column="0"><widget class="QLabel" name="scenarioBoxL0"><property name="text"><string>Latitude</string></property></widget></item><item row="0" column="1"><widget class="QDoubleSpinBox" name="latSpin"><property name="suffix"><string> °</string></property><property name="decimals"><number>6</number></property><property name="minimum"><double>-90</double></property><property name="maximum"><double>90</double></property><property name="value"><double>40</double></property></widget></item><item row="1" column="0"><widget class="QLabel" name="scenarioBoxL1"><property name="text"><string>Longitude</string></property></widget></item><item row="1" column="1"><widget class="QDoubleSpinBox" name="lonSpin"><property name="suffix"><string> °</string></property><property name="decimals"><number>6</number></property><property name="minimum"><double>-180</double></property><property name="maximum"><double>180</double></property><property name="value"><double>-105</double></property></widget></item><item row="2" column="0"><widget class="QLabel" name="scenarioBoxL2"><property name="text"><string>Height</string></property></widget></item><item row="2" column="1"><widget class="QDoubleSpinBox" name="altSpin"><property name="suffix"><string> m</string></property><property name="decimals"><number>1</number></property><property name="minimum"><double>-400</double></property><property name="maximum"><double>100000</double></property><property name="value"><double>1650</double></property></widget></item><item row="3" column="0"><widget class="QLabel" name="scenarioBoxL3"><property name="text"><string>Velocity east</string></property></widget></item><item row="3" column="1"><widget class="QDoubleSpinBox" name="velEastSpin"><property name="suffix"><string> m/s</string></property><property name="decimals"><number>1</number></property><property name="minimum"><double>-10000</double></property><property name="maximum"><double>10000</double></property><property name="value"><double>0</double></property></widget></item><item row="4" column="0"><widget class="QLabel" name="scenarioBoxL4"><property name="text"><string>Velocity north</string></property></widget></item><item row="4" column="1"><widget class="QDoubleSpinBox" name="velNorthSpin"><property name="suffix"><string> m/s</string></property><property name="decimals"><number>1</number></property><property name="minimum"><double>-10000</double></property><property name="maximum"><double>10000</double></property><property name="value"><double>0</double></property></widget></item><item row="5" column="0"><widget class="QLabel" name="scenarioBoxL5"><property name="text"><string>Velocity up</string></property></widget></item><item row="5" column="1"><widget class="QDoubleSpinBox" name="velUpSpin"><property name="suffix"><string> m/s</string></property><property name="decimals"><number>1</number></property><property name="minimum"><double>-10000</double></property><property name="maximum"><double>10000</double></property><property name="value"><double>0</double></property></widget></item><item row="6" column="0"><widget class="QLabel" name="scenarioBoxLAlmanac"><property name="text"><string>Almanac</string></property></widget></item><item row="6" column="1"><layout class="QHBoxLayout" name="almanacLayout"><item><widget class="QLineEdit" name="almanacEdit"><property name="readOnly"><bool>true</bool></property><property name="placeholderText"><string>none: a made-up constellation</string></property></widget></item><item><widget class="QPushButton" name="almanacButton"><property name="text"><string>Load…</string></property><property name="toolTip"><string>A YUMA almanac: its healthy satellites are simulated, and loading it moves the start to its reference time</string></property></widget></item><item><widget class="QPushButton" name="almanacClearButton"><property name="text"><string>Clear</string></property><property name="toolTip"><string>Go back to the made-up constellation</string></property></widget></item></layout></item><item row="7" column="0"><widget class="QLabel" name="scenarioBoxLStart"><property name="text"><string>Start (UTC)</string></property></widget></item><item row="7" column="1"><layout class="QHBoxLayout" name="startLayout" stretch="1,0"><item><widget class="QDateTimeEdit" name="startEdit"><property name="sizePolicy"><sizepolicy hsizetype="Expanding" vsizetype="Fixed"><horstretch>0</horstretch><verstretch>0</verstretch></sizepolicy></property><property name="displayFormat"><string>yyyy-MM-dd HH:mm:ss</string></property><property name="calendarPopup"><bool>true</bool></property><property name="toolTip"><string>The start as a UTC date and time. GPS week and time of week follow it, and it follows them.</string></property></widget></item><item><widget class="QPushButton" name="nowButton"><property name="text"><string>Now</string></property><property name="toolTip"><string>Start at the current date and time</string></property></widget></item></layout></item><item row="8" column="0"><widget class="QLabel" name="scenarioBoxL6"><property name="text"><string>GPS week</string></property></widget></item><item row="8" column="1"><widget class="QSpinBox" name="weekSpin"><property name="suffix"><string /></property><property name="minimum"><number>0</number></property><property name="maximum"><number>9999</number></property><property name="value"><number>2445</number></property></widget></item><item row="9" column="0"><widget class="QLabel" name="scenarioBoxL7"><property name="text"><string>Start time of week</string></property></widget></item><item row="9" column="1"><widget class="QSpinBox" name="towSpin"><property name="suffix"><string> s</string></property><property name="minimum"><number>0</number></property><property name="maximum"><number>604799</number></property><property name="value"><number>345600</number></property></widget></item><item row="10" column="0"><widget class="QLabel" name="scenarioBoxL8"><property name="text"><string>Duration (0 = until stopped)</string></property></widget></item><item row="10" column="1"><widget class="QDoubleSpinBox" name="secondsSpin"><property name="suffix"><string> s</string></property><property name="decimals"><number>1</number></property><property name="minimum"><double>0</double></property><property name="maximum"><double>86400</double></property><property name="value"><double>60</double></property></widget></item><item row="11" column="0"><widget class="QLabel" name="scenarioBoxL9"><property name="text"><string>Receiver clock offset</string></property></widget></item><item row="11" column="1"><widget class="QDoubleSpinBox" name="biasSpin"><property name="suffix"><string> µs</string></property><property name="decimals"><number>3</number></property><property name="minimum"><double>-1000000</double></property><property name="maximum"><double>1000000</double></property><property name="value"><double>150</double></property></widget></item><item row="12" column="0"><widget class="QLabel" name="scenarioBoxL10"><property name="text"><string>Receiver clock drift</string></property></widget></item><item row="12" column="1"><widget class="QDoubleSpinBox" name="driftSpin"><property name="suffix"><string> ns/s</string></property><property name="decimals"><number>3</number></property><property name="minimum"><double>-10000</double></property><property name="maximum"><double>10000</double></property><property name="value"><double>100</double></property></widget></item></layout></widget></item><item><widget class="QGroupBox" name="signalBox"><property name="title"><string>Signal</string></property><layout class="QFormLayout" name="signalBoxForm"><item row="0" column="0"><widget class="QLabel" name="signalBoxL0"><property name="text"><string>Sample rate</string></property></widget></item><item row="0" column="1"><widget class="QDoubleSpinBox" name="fsSpin"><property name="suffix"><string> MHz</string></property><property name="decimals"><number>6</number></property><property name="minimum"><double>2.046</double></property><property name="maximum"><double>100</double></property><property name="value"><double>5</double></property></widget></item><item row="1" column="0"><widget class="QLabel" name="signalBoxL1"><property name="text"><string>IF</string></property></widget></item><item row="1" column="1"><widget class="QDoubleSpinBox" name="ifSpin"><property name="suffix"><string> MHz</string></property><property name="decimals"><number>6</number></property><property name="minimum"><double>-50</double></property><property name="maximum"><double>50</double></property><property name="value"><double>0</double></property></widget></item><item row="2" column="0"><widget class="QLabel" name="signalBoxL2"><property name="text"><string>Sample format</string></property></widget></item><item row="2" column="1"><widget class="QComboBox" name="formatCombo"><item><property name="text"><string>int8 I/Q</string></property></item><item><property name="text"><string>int16 I/Q</string></property></item><item><property name="text"><string>int8 real</string></property></item><item><property name="text"><string>int16 real</string></property></item></widget></item><item row="3" column="0"><widget class="QLabel" name="signalBoxL3"><property name="text"><string>C/N0 at the zenith</string></property></widget></item><item row="3" column="1"><widget class="QDoubleSpinBox" name="cn0Spin"><property name="suffix"><string> dB-Hz</string></property><property name="decimals"><number>1</number></property><property name="minimum"><double>20</double></property><property name="maximum"><double>60</double></property><property name="value"><double>50</double></property></widget></item><item row="4" column="0"><widget class="QLabel" name="signalBoxL4"><property name="text"><string>Noise per rail</string></property></widget></item><item row="4" column="1"><widget class="QDoubleSpinBox" name="noiseSpin"><property name="suffix"><string> counts</string></property><property name="decimals"><number>1</number></property><property name="minimum"><double>1</double></property><property name="maximum"><double>60</double></property><property name="value"><double>30</double></property></widget></item><item row="5" column="0"><widget class="QLabel" name="signalBoxL5"><property name="text"><string>Elevation mask</string></property></widget></item><item row="5" column="1"><widget class="QDoubleSpinBox" name="maskSpin"><property name="suffix"><string> °</string></property><property name="decimals"><number>1</number></property><property name="minimum"><double>0</double></property><property name="maximum"><double>60</double></property><property name="value"><double>5</double></property></widget></item><item row="6" column="1"><widget class="QCheckBox" name="ionoCheck"><property name="text"><string>Ionosphere (Klobuchar)</string></property><property name="checked"><bool>true</bool></property></widget></item><item row="7" column="1"><widget class="QCheckBox" name="tropoCheck"><property name="text"><string>Troposphere (Saastamoinen)</string></property><property name="checked"><bool>true</bool></property></widget></item></layout></widget></item><item><spacer name="leftSpacer"><property name="orientation"><enum>Qt::Vertical</enum></property></spacer></item>
-</layout></item>
-<item><layout class="QVBoxLayout" name="middleColumn" stretch="0,0,0,0,1"><item><widget class="QGroupBox" name="outputBox"><property name="title"><string>Output</string></property><layout class="QFormLayout" name="outputBoxForm"><item row="0" column="1"><widget class="QCheckBox" name="fileCheck"><property name="text"><string>Write an I/Q file</string></property><property name="checked"><bool>true</bool></property></widget></item><item row="1" column="0"><widget class="QLabel" name="outputBoxL1"><property name="text"><string>File</string></property></widget></item><item row="1" column="1"><layout class="QHBoxLayout" name="fileRow"><item><widget class="QLineEdit" name="fileEdit" /></item><item><widget class="QPushButton" name="browseButton"><property name="text"><string>Browse...</string></property></widget></item></layout></item><item row="2" column="1"><widget class="QCheckBox" name="streamCheck"><property name="text"><string>Stream to SoftGpsReceiver at the real rate</string></property><property name="checked"><bool>false</bool></property></widget></item><item row="3" column="0"><widget class="QLabel" name="outputBoxL3"><property name="text"><string>TCP port</string></property></widget></item><item row="3" column="1"><widget class="QSpinBox" name="portSpin"><property name="suffix"><string /></property><property name="minimum"><number>1024</number></property><property name="maximum"><number>65535</number></property><property name="value"><number>5555</number></property></widget></item><item row="4" column="0"><widget class="QLabel" name="outputBoxL4"><property name="text"><string>Transmit at L1</string></property></widget></item><item row="4" column="1"><widget class="QComboBox" name="radioCombo"><item><property name="text"><string>No</string></property></item><item><property name="text"><string>On a USRP (through UHD)</string></property></item><item><property name="text"><string>On a HackRF One</string></property></item></widget></item><item row="5" column="0"><widget class="QLabel" name="outputBoxL5"><property name="text"><string>Device</string></property></widget></item><item row="5" column="1"><widget class="QLineEdit" name="radioDeviceEdit" /></item><item row="6" column="0"><widget class="QLabel" name="outputBoxL6"><property name="text"><string>TX gain</string></property></widget></item><item row="6" column="1"><widget class="QDoubleSpinBox" name="radioGainSpin"><property name="suffix"><string> dB</string></property><property name="decimals"><number>1</number></property><property name="minimum"><double>0</double></property><property name="maximum"><double>90</double></property><property name="singleStep"><double>0.5</double></property><property name="value"><double>0</double></property></widget></item><item row="7" column="1"><widget class="QCheckBox" name="radioAmpCheck"><property name="text"><string>HackRF RF amplifier (+14 dB)</string></property><property name="checked"><bool>false</bool></property></widget></item><item row="8" column="1"><widget class="QCheckBox" name="radioRefCheck"><property name="text"><string>Lock to a 10 MHz reference (USRP: REF IN, HackRF: CLKIN)</string></property><property name="checked"><bool>false</bool></property></widget></item><item row="9" column="0"><widget class="QLabel" name="outputBoxL9"><property name="text"><string>HackRF crystal error</string></property></widget></item><item row="9" column="1"><widget class="QDoubleSpinBox" name="radioPpmSpin"><property name="toolTip"><string>Positive when the HackRF runs fast. GPSSim retunes the carrier and the sample rate to make up for it.</string></property><property name="suffix"><string> ppm</string></property><property name="decimals"><number>2</number></property><property name="minimum"><double>-100</double></property><property name="maximum"><double>100</double></property><property name="singleStep"><double>0.1</double></property><property name="value"><double>0</double></property></widget></item></layout></widget></item>
-<item><layout class="QHBoxLayout" name="buttons"><item><widget class="QPushButton" name="startButton"><property name="text"><string>Start</string></property></widget></item><item><widget class="QPushButton" name="stopButton"><property name="text"><string>Stop</string></property></widget></item></layout></item>
-<item><widget class="QProgressBar" name="progressBar"><property name="maximum"><number>1000</number></property><property name="value"><number>0</number></property></widget></item>
-<item><widget class="QLabel" name="statusLabel"><property name="text"><string>Ready</string></property></widget></item>
-<item><widget class="QPlainTextEdit" name="logEdit"><property name="readOnly"><bool>true</bool></property></widget></item>
-</layout></item><item><layout class="QVBoxLayout" name="rightColumn" stretch="1,1">
-<item><widget class="SkyView" name="skyView" native="true" /></item>
-<item><widget class="QTableWidget" name="satTable"><property name="editTriggers"><set>QAbstractItemView::NoEditTriggers</set></property><property name="columnCount"><number>6</number></property><column><property name="text"><string>PRN</string></property></column><column><property name="text"><string>Az (°)</string></property></column><column><property name="text"><string>El (°)</string></property></column><column><property name="text"><string>Doppler (Hz)</string></property></column><column><property name="text"><string>C/N0</string></property></column><column><property name="text"><string>Pseudorange (km)</string></property></column></widget></item>
-</layout></item>
-</layout></widget>
-</widget>
-<customwidgets><customwidget><class>SkyView</class><extends>QWidget</extends><header>gui/SkyView.h</header><container>0</container></customwidget></customwidgets>
-<resources /><connections /></ui>
+<ui version="4.0">
+ <class>MainWindow</class>
+ <widget class="QMainWindow" name="MainWindow">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>1600</width>
+    <height>760</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>GPSSim</string>
+  </property>
+  <widget class="QWidget" name="centralwidget">
+   <layout class="QHBoxLayout" name="mainLayout" stretch="0,0,1">
+    <item>
+     <layout class="QVBoxLayout" name="leftColumn">
+      <item>
+       <widget class="QGroupBox" name="locationBox">
+        <property name="title">
+         <string>Location</string>
+        </property>
+        <layout class="QFormLayout" name="locationBoxForm">
+         <item row="0" column="0">
+          <widget class="QLabel" name="locationBoxL0">
+           <property name="text">
+            <string>Position</string>
+           </property>
+          </widget>
+         </item>
+         <item row="0" column="1">
+          <layout class="QHBoxLayout" name="locationLayout" stretch="1,0">
+           <item>
+            <widget class="QLineEdit" name="locationEdit">
+             <property name="minimumSize">
+              <size>
+               <width>290</width>
+               <height>0</height>
+              </size>
+             </property>
+             <property name="toolTip">
+              <string>The start position, typed or pasted in any of these ways:
+40.014984, -105.270546
+40° 00.899' N, 105° 16.233' W
+40° 00' 53.94&quot; N, 105° 16' 13.97&quot; W
+13T 476911 4429455 (UTM)
+13TDE 76911 29455 (MGRS)
+-1288678.58, -4720147.72, 4080320.87 (ECEF, in metres)
+A height may follow, in metres or feet above the WGS-84 ellipsoid: 1650 m, 5413 ft</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QComboBox" name="locationFormatCombo">
+             <property name="toolTip">
+              <string>How the position is written here. Whichever way it is typed, it is read.</string>
+             </property>
+             <item>
+              <property name="text">
+               <string>Degrees</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>Deg, min</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>Deg, min, sec</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>UTM</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>MGRS</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>ECEF</string>
+              </property>
+             </item>
+            </widget>
+           </item>
+          </layout>
+         </item>
+         <item row="1" column="0">
+          <widget class="QLabel" name="locationBoxL1">
+           <property name="text">
+            <string>Latitude, longitude</string>
+           </property>
+          </widget>
+         </item>
+         <item row="1" column="1">
+          <layout class="QHBoxLayout" name="latLonLayout">
+           <item>
+            <widget class="QDoubleSpinBox" name="latSpin">
+             <property name="suffix">
+              <string> °</string>
+             </property>
+             <property name="decimals">
+              <number>8</number>
+             </property>
+             <property name="minimum">
+              <double>-90.000000000000000</double>
+             </property>
+             <property name="maximum">
+              <double>90.000000000000000</double>
+             </property>
+             <property name="value">
+              <double>40.000000000000000</double>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QDoubleSpinBox" name="lonSpin">
+             <property name="suffix">
+              <string> °</string>
+             </property>
+             <property name="decimals">
+              <number>8</number>
+             </property>
+             <property name="minimum">
+              <double>-180.000000000000000</double>
+             </property>
+             <property name="maximum">
+              <double>180.000000000000000</double>
+             </property>
+             <property name="value">
+              <double>-105.000000000000000</double>
+             </property>
+            </widget>
+           </item>
+          </layout>
+         </item>
+         <item row="2" column="0">
+          <widget class="QLabel" name="locationBoxL2">
+           <property name="text">
+            <string>Height</string>
+           </property>
+          </widget>
+         </item>
+         <item row="2" column="1">
+          <layout class="QHBoxLayout" name="heightLayout" stretch="1,0">
+           <item>
+            <widget class="QDoubleSpinBox" name="altSpin">
+             <property name="suffix">
+              <string> m</string>
+             </property>
+             <property name="decimals">
+              <number>3</number>
+             </property>
+             <property name="minimum">
+              <double>-400.000000000000000</double>
+             </property>
+             <property name="maximum">
+              <double>100000.000000000000000</double>
+             </property>
+             <property name="value">
+              <double>1650.000000000000000</double>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QPushButton" name="globeButton">
+             <property name="text">
+              <string>Globe…</string>
+             </property>
+             <property name="toolTip">
+              <string>Show the receiver and the satellites on a 3D globe</string>
+             </property>
+            </widget>
+           </item>
+          </layout>
+         </item>
+        </layout>
+       </widget>
+      </item>
+      <item>
+       <widget class="QGroupBox" name="scenarioBox">
+        <property name="title">
+         <string>Scenario</string>
+        </property>
+        <layout class="QFormLayout" name="scenarioBoxForm">
+         <item row="0" column="0">
+          <widget class="QLabel" name="scenarioBoxL3">
+           <property name="text">
+            <string>Velocity east</string>
+           </property>
+          </widget>
+         </item>
+         <item row="0" column="1">
+          <widget class="QDoubleSpinBox" name="velEastSpin">
+           <property name="suffix">
+            <string> m/s</string>
+           </property>
+           <property name="decimals">
+            <number>1</number>
+           </property>
+           <property name="minimum">
+            <double>-10000.000000000000000</double>
+           </property>
+           <property name="maximum">
+            <double>10000.000000000000000</double>
+           </property>
+           <property name="value">
+            <double>0.000000000000000</double>
+           </property>
+          </widget>
+         </item>
+         <item row="1" column="0">
+          <widget class="QLabel" name="scenarioBoxL4">
+           <property name="text">
+            <string>Velocity north</string>
+           </property>
+          </widget>
+         </item>
+         <item row="1" column="1">
+          <widget class="QDoubleSpinBox" name="velNorthSpin">
+           <property name="suffix">
+            <string> m/s</string>
+           </property>
+           <property name="decimals">
+            <number>1</number>
+           </property>
+           <property name="minimum">
+            <double>-10000.000000000000000</double>
+           </property>
+           <property name="maximum">
+            <double>10000.000000000000000</double>
+           </property>
+           <property name="value">
+            <double>0.000000000000000</double>
+           </property>
+          </widget>
+         </item>
+         <item row="2" column="0">
+          <widget class="QLabel" name="scenarioBoxL5">
+           <property name="text">
+            <string>Velocity up</string>
+           </property>
+          </widget>
+         </item>
+         <item row="2" column="1">
+          <widget class="QDoubleSpinBox" name="velUpSpin">
+           <property name="suffix">
+            <string> m/s</string>
+           </property>
+           <property name="decimals">
+            <number>1</number>
+           </property>
+           <property name="minimum">
+            <double>-10000.000000000000000</double>
+           </property>
+           <property name="maximum">
+            <double>10000.000000000000000</double>
+           </property>
+           <property name="value">
+            <double>0.000000000000000</double>
+           </property>
+          </widget>
+         </item>
+         <item row="3" column="0">
+          <widget class="QLabel" name="scenarioBoxLAlmanac">
+           <property name="text">
+            <string>Almanac</string>
+           </property>
+          </widget>
+         </item>
+         <item row="3" column="1">
+          <layout class="QHBoxLayout" name="almanacLayout">
+           <item>
+            <widget class="QLineEdit" name="almanacEdit">
+             <property name="readOnly">
+              <bool>true</bool>
+             </property>
+             <property name="placeholderText">
+              <string>none: a made-up constellation</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QPushButton" name="almanacButton">
+             <property name="toolTip">
+              <string>A YUMA almanac: its healthy satellites are simulated, and loading it moves the start to its reference time</string>
+             </property>
+             <property name="text">
+              <string>Load…</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QPushButton" name="almanacFetchButton">
+             <property name="toolTip">
+              <string>Download the current YUMA almanac from the US Coast Guard Navigation Center and load it</string>
+             </property>
+             <property name="text">
+              <string>Fetch Latest…</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QPushButton" name="almanacClearButton">
+             <property name="toolTip">
+              <string>Go back to the made-up constellation</string>
+             </property>
+             <property name="text">
+              <string>Clear</string>
+             </property>
+            </widget>
+           </item>
+          </layout>
+         </item>
+         <item row="4" column="0">
+          <widget class="QLabel" name="scenarioBoxLStart">
+           <property name="text">
+            <string>Start (UTC)</string>
+           </property>
+          </widget>
+         </item>
+         <item row="4" column="1">
+          <layout class="QHBoxLayout" name="startLayout" stretch="1,0">
+           <item>
+            <widget class="QDateTimeEdit" name="startEdit">
+             <property name="sizePolicy">
+              <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+               <horstretch>0</horstretch>
+               <verstretch>0</verstretch>
+              </sizepolicy>
+             </property>
+             <property name="toolTip">
+              <string>The start as a UTC date and time. GPS week and time of week follow it, and it follows them.</string>
+             </property>
+             <property name="displayFormat">
+              <string>yyyy-MM-dd HH:mm:ss</string>
+             </property>
+             <property name="calendarPopup">
+              <bool>true</bool>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QPushButton" name="nowButton">
+             <property name="toolTip">
+              <string>Start at the current date and time</string>
+             </property>
+             <property name="text">
+              <string>Now</string>
+             </property>
+            </widget>
+           </item>
+          </layout>
+         </item>
+         <item row="5" column="0">
+          <widget class="QLabel" name="scenarioBoxL6">
+           <property name="text">
+            <string>GPS week</string>
+           </property>
+          </widget>
+         </item>
+         <item row="5" column="1">
+          <widget class="QSpinBox" name="weekSpin">
+           <property name="suffix">
+            <string/>
+           </property>
+           <property name="minimum">
+            <number>0</number>
+           </property>
+           <property name="maximum">
+            <number>9999</number>
+           </property>
+           <property name="value">
+            <number>2445</number>
+           </property>
+          </widget>
+         </item>
+         <item row="6" column="0">
+          <widget class="QLabel" name="scenarioBoxL7">
+           <property name="text">
+            <string>Start time of week</string>
+           </property>
+          </widget>
+         </item>
+         <item row="6" column="1">
+          <widget class="QSpinBox" name="towSpin">
+           <property name="suffix">
+            <string> s</string>
+           </property>
+           <property name="minimum">
+            <number>0</number>
+           </property>
+           <property name="maximum">
+            <number>604799</number>
+           </property>
+           <property name="value">
+            <number>345600</number>
+           </property>
+          </widget>
+         </item>
+         <item row="7" column="0">
+          <widget class="QLabel" name="scenarioBoxL8">
+           <property name="text">
+            <string>Duration (0 = until stopped)</string>
+           </property>
+          </widget>
+         </item>
+         <item row="7" column="1">
+          <widget class="QDoubleSpinBox" name="secondsSpin">
+           <property name="suffix">
+            <string> s</string>
+           </property>
+           <property name="decimals">
+            <number>1</number>
+           </property>
+           <property name="minimum">
+            <double>0.000000000000000</double>
+           </property>
+           <property name="maximum">
+            <double>86400.000000000000000</double>
+           </property>
+           <property name="value">
+            <double>60.000000000000000</double>
+           </property>
+          </widget>
+         </item>
+         <item row="8" column="0">
+          <widget class="QLabel" name="scenarioBoxL9">
+           <property name="text">
+            <string>Receiver clock offset</string>
+           </property>
+          </widget>
+         </item>
+         <item row="8" column="1">
+          <widget class="QDoubleSpinBox" name="biasSpin">
+           <property name="suffix">
+            <string> µs</string>
+           </property>
+           <property name="decimals">
+            <number>3</number>
+           </property>
+           <property name="minimum">
+            <double>-1000000.000000000000000</double>
+           </property>
+           <property name="maximum">
+            <double>1000000.000000000000000</double>
+           </property>
+           <property name="value">
+            <double>150.000000000000000</double>
+           </property>
+          </widget>
+         </item>
+         <item row="9" column="0">
+          <widget class="QLabel" name="scenarioBoxL10">
+           <property name="text">
+            <string>Receiver clock drift</string>
+           </property>
+          </widget>
+         </item>
+         <item row="9" column="1">
+          <widget class="QDoubleSpinBox" name="driftSpin">
+           <property name="suffix">
+            <string> ns/s</string>
+           </property>
+           <property name="decimals">
+            <number>3</number>
+           </property>
+           <property name="minimum">
+            <double>-10000.000000000000000</double>
+           </property>
+           <property name="maximum">
+            <double>10000.000000000000000</double>
+           </property>
+           <property name="value">
+            <double>100.000000000000000</double>
+           </property>
+          </widget>
+         </item>
+        </layout>
+       </widget>
+      </item>
+      <item>
+       <widget class="QGroupBox" name="signalBox">
+        <property name="title">
+         <string>Signal</string>
+        </property>
+        <layout class="QFormLayout" name="signalBoxForm">
+         <item row="0" column="0">
+          <widget class="QLabel" name="signalBoxL0">
+           <property name="text">
+            <string>Sample rate</string>
+           </property>
+          </widget>
+         </item>
+         <item row="0" column="1">
+          <widget class="QDoubleSpinBox" name="fsSpin">
+           <property name="suffix">
+            <string> MHz</string>
+           </property>
+           <property name="decimals">
+            <number>6</number>
+           </property>
+           <property name="minimum">
+            <double>2.046000000000000</double>
+           </property>
+           <property name="maximum">
+            <double>100.000000000000000</double>
+           </property>
+           <property name="value">
+            <double>5.000000000000000</double>
+           </property>
+          </widget>
+         </item>
+         <item row="1" column="0">
+          <widget class="QLabel" name="signalBoxL1">
+           <property name="text">
+            <string>IF</string>
+           </property>
+          </widget>
+         </item>
+         <item row="1" column="1">
+          <widget class="QDoubleSpinBox" name="ifSpin">
+           <property name="suffix">
+            <string> MHz</string>
+           </property>
+           <property name="decimals">
+            <number>6</number>
+           </property>
+           <property name="minimum">
+            <double>-50.000000000000000</double>
+           </property>
+           <property name="maximum">
+            <double>50.000000000000000</double>
+           </property>
+           <property name="value">
+            <double>0.000000000000000</double>
+           </property>
+          </widget>
+         </item>
+         <item row="2" column="0">
+          <widget class="QLabel" name="signalBoxL2">
+           <property name="text">
+            <string>Sample format</string>
+           </property>
+          </widget>
+         </item>
+         <item row="2" column="1">
+          <widget class="QComboBox" name="formatCombo">
+           <item>
+            <property name="text">
+             <string>int8 I/Q</string>
+            </property>
+           </item>
+           <item>
+            <property name="text">
+             <string>int16 I/Q</string>
+            </property>
+           </item>
+           <item>
+            <property name="text">
+             <string>int8 real</string>
+            </property>
+           </item>
+           <item>
+            <property name="text">
+             <string>int16 real</string>
+            </property>
+           </item>
+          </widget>
+         </item>
+         <item row="3" column="0">
+          <widget class="QLabel" name="signalBoxL3">
+           <property name="text">
+            <string>C/N0 at the zenith</string>
+           </property>
+          </widget>
+         </item>
+         <item row="3" column="1">
+          <widget class="QDoubleSpinBox" name="cn0Spin">
+           <property name="suffix">
+            <string> dB-Hz</string>
+           </property>
+           <property name="decimals">
+            <number>1</number>
+           </property>
+           <property name="minimum">
+            <double>20.000000000000000</double>
+           </property>
+           <property name="maximum">
+            <double>60.000000000000000</double>
+           </property>
+           <property name="value">
+            <double>50.000000000000000</double>
+           </property>
+          </widget>
+         </item>
+         <item row="4" column="0">
+          <widget class="QLabel" name="signalBoxL4">
+           <property name="text">
+            <string>Noise per rail</string>
+           </property>
+          </widget>
+         </item>
+         <item row="4" column="1">
+          <widget class="QDoubleSpinBox" name="noiseSpin">
+           <property name="suffix">
+            <string> counts</string>
+           </property>
+           <property name="decimals">
+            <number>1</number>
+           </property>
+           <property name="minimum">
+            <double>1.000000000000000</double>
+           </property>
+           <property name="maximum">
+            <double>60.000000000000000</double>
+           </property>
+           <property name="value">
+            <double>30.000000000000000</double>
+           </property>
+          </widget>
+         </item>
+         <item row="5" column="0">
+          <widget class="QLabel" name="signalBoxL5">
+           <property name="text">
+            <string>Elevation mask</string>
+           </property>
+          </widget>
+         </item>
+         <item row="5" column="1">
+          <widget class="QDoubleSpinBox" name="maskSpin">
+           <property name="suffix">
+            <string> °</string>
+           </property>
+           <property name="decimals">
+            <number>1</number>
+           </property>
+           <property name="minimum">
+            <double>0.000000000000000</double>
+           </property>
+           <property name="maximum">
+            <double>60.000000000000000</double>
+           </property>
+           <property name="value">
+            <double>5.000000000000000</double>
+           </property>
+          </widget>
+         </item>
+         <item row="6" column="1">
+          <widget class="QCheckBox" name="ionoCheck">
+           <property name="text">
+            <string>Ionosphere (Klobuchar)</string>
+           </property>
+           <property name="checked">
+            <bool>true</bool>
+           </property>
+          </widget>
+         </item>
+         <item row="7" column="1">
+          <widget class="QCheckBox" name="tropoCheck">
+           <property name="text">
+            <string>Troposphere (Saastamoinen)</string>
+           </property>
+           <property name="checked">
+            <bool>true</bool>
+           </property>
+          </widget>
+         </item>
+        </layout>
+       </widget>
+      </item>
+      <item>
+       <spacer name="leftSpacer">
+        <property name="orientation">
+         <enum>Qt::Orientation::Vertical</enum>
+        </property>
+        <property name="sizeHint" stdset="0">
+         <size>
+          <width>0</width>
+          <height>0</height>
+         </size>
+        </property>
+       </spacer>
+      </item>
+     </layout>
+    </item>
+    <item>
+     <layout class="QVBoxLayout" name="middleColumn" stretch="0,0,0,0,1">
+      <item>
+       <widget class="QGroupBox" name="outputBox">
+        <property name="title">
+         <string>Output</string>
+        </property>
+        <layout class="QFormLayout" name="outputBoxForm">
+         <item row="0" column="1">
+          <widget class="QCheckBox" name="fileCheck">
+           <property name="text">
+            <string>Write an I/Q file</string>
+           </property>
+           <property name="checked">
+            <bool>true</bool>
+           </property>
+          </widget>
+         </item>
+         <item row="1" column="0">
+          <widget class="QLabel" name="outputBoxL1">
+           <property name="text">
+            <string>File</string>
+           </property>
+          </widget>
+         </item>
+         <item row="1" column="1">
+          <layout class="QHBoxLayout" name="fileRow">
+           <item>
+            <widget class="QLineEdit" name="fileEdit"/>
+           </item>
+           <item>
+            <widget class="QPushButton" name="browseButton">
+             <property name="text">
+              <string>Browse...</string>
+             </property>
+            </widget>
+           </item>
+          </layout>
+         </item>
+         <item row="2" column="1">
+          <widget class="QCheckBox" name="streamCheck">
+           <property name="text">
+            <string>Stream to SoftGpsReceiver at the real rate</string>
+           </property>
+           <property name="checked">
+            <bool>false</bool>
+           </property>
+          </widget>
+         </item>
+         <item row="3" column="0">
+          <widget class="QLabel" name="outputBoxL3">
+           <property name="text">
+            <string>TCP port</string>
+           </property>
+          </widget>
+         </item>
+         <item row="3" column="1">
+          <widget class="QSpinBox" name="portSpin">
+           <property name="suffix">
+            <string/>
+           </property>
+           <property name="minimum">
+            <number>1024</number>
+           </property>
+           <property name="maximum">
+            <number>65535</number>
+           </property>
+           <property name="value">
+            <number>5555</number>
+           </property>
+          </widget>
+         </item>
+         <item row="4" column="0">
+          <widget class="QLabel" name="outputBoxL4">
+           <property name="text">
+            <string>Transmit at L1</string>
+           </property>
+          </widget>
+         </item>
+         <item row="4" column="1">
+          <widget class="QComboBox" name="radioCombo">
+           <item>
+            <property name="text">
+             <string>No</string>
+            </property>
+           </item>
+           <item>
+            <property name="text">
+             <string>On a USRP (through UHD)</string>
+            </property>
+           </item>
+           <item>
+            <property name="text">
+             <string>On a HackRF One</string>
+            </property>
+           </item>
+          </widget>
+         </item>
+         <item row="5" column="0">
+          <widget class="QLabel" name="outputBoxL5">
+           <property name="text">
+            <string>Device</string>
+           </property>
+          </widget>
+         </item>
+         <item row="5" column="1">
+          <widget class="QLineEdit" name="radioDeviceEdit"/>
+         </item>
+         <item row="6" column="0">
+          <widget class="QLabel" name="outputBoxL6">
+           <property name="text">
+            <string>TX gain</string>
+           </property>
+          </widget>
+         </item>
+         <item row="6" column="1">
+          <widget class="QDoubleSpinBox" name="radioGainSpin">
+           <property name="suffix">
+            <string> dB</string>
+           </property>
+           <property name="decimals">
+            <number>1</number>
+           </property>
+           <property name="minimum">
+            <double>0.000000000000000</double>
+           </property>
+           <property name="maximum">
+            <double>90.000000000000000</double>
+           </property>
+           <property name="singleStep">
+            <double>0.500000000000000</double>
+           </property>
+           <property name="value">
+            <double>0.000000000000000</double>
+           </property>
+          </widget>
+         </item>
+         <item row="7" column="1">
+          <widget class="QCheckBox" name="radioAmpCheck">
+           <property name="text">
+            <string>HackRF RF amplifier (+14 dB)</string>
+           </property>
+           <property name="checked">
+            <bool>false</bool>
+           </property>
+          </widget>
+         </item>
+         <item row="8" column="1">
+          <widget class="QCheckBox" name="radioRefCheck">
+           <property name="text">
+            <string>Lock to a 10 MHz reference (USRP: REF IN, HackRF: CLKIN)</string>
+           </property>
+           <property name="checked">
+            <bool>false</bool>
+           </property>
+          </widget>
+         </item>
+         <item row="9" column="0">
+          <widget class="QLabel" name="outputBoxL9">
+           <property name="text">
+            <string>HackRF crystal error</string>
+           </property>
+          </widget>
+         </item>
+         <item row="9" column="1">
+          <widget class="QDoubleSpinBox" name="radioPpmSpin">
+           <property name="toolTip">
+            <string>Positive when the HackRF runs fast. GPSSim retunes the carrier and the sample rate to make up for it.</string>
+           </property>
+           <property name="suffix">
+            <string> ppm</string>
+           </property>
+           <property name="decimals">
+            <number>2</number>
+           </property>
+           <property name="minimum">
+            <double>-100.000000000000000</double>
+           </property>
+           <property name="maximum">
+            <double>100.000000000000000</double>
+           </property>
+           <property name="singleStep">
+            <double>0.100000000000000</double>
+           </property>
+           <property name="value">
+            <double>0.000000000000000</double>
+           </property>
+          </widget>
+         </item>
+        </layout>
+       </widget>
+      </item>
+      <item>
+       <layout class="QHBoxLayout" name="buttons">
+        <item>
+         <widget class="QPushButton" name="startButton">
+          <property name="text">
+           <string>Start</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QPushButton" name="stopButton">
+          <property name="text">
+           <string>Stop</string>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </item>
+      <item>
+       <widget class="QProgressBar" name="progressBar">
+        <property name="maximum">
+         <number>1000</number>
+        </property>
+        <property name="value">
+         <number>0</number>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QLabel" name="statusLabel">
+        <property name="text">
+         <string>Ready</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QPlainTextEdit" name="logEdit">
+        <property name="readOnly">
+         <bool>true</bool>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </item>
+    <item>
+     <layout class="QVBoxLayout" name="rightColumn" stretch="1,1">
+      <item>
+       <widget class="SkyView" name="skyView" native="true"/>
+      </item>
+      <item>
+       <widget class="QTableWidget" name="satTable">
+        <property name="editTriggers">
+         <set>QAbstractItemView::EditTrigger::NoEditTriggers</set>
+        </property>
+        <property name="columnCount">
+         <number>6</number>
+        </property>
+        <column>
+         <property name="text">
+          <string>PRN</string>
+         </property>
+        </column>
+        <column>
+         <property name="text">
+          <string>Az (°)</string>
+         </property>
+        </column>
+        <column>
+         <property name="text">
+          <string>El (°)</string>
+         </property>
+        </column>
+        <column>
+         <property name="text">
+          <string>Doppler (Hz)</string>
+         </property>
+        </column>
+        <column>
+         <property name="text">
+          <string>C/N0</string>
+         </property>
+        </column>
+        <column>
+         <property name="text">
+          <string>Pseudorange (km)</string>
+         </property>
+        </column>
+       </widget>
+      </item>
+     </layout>
+    </item>
+   </layout>
+  </widget>
+ </widget>
+ <customwidgets>
+  <customwidget>
+   <class>SkyView</class>
+   <extends>QWidget</extends>
+   <header>gui/SkyView.h</header>
+  </customwidget>
+ </customwidgets>
+ <resources/>
+ <connections/>
+</ui>

@@ -7,6 +7,9 @@
 
 #include <atomic>
 
+class GlobeDialog;
+class QNetworkAccessManager;
+class QNetworkReply;
 class QThread;
 
 QT_BEGIN_NAMESPACE
@@ -31,9 +34,14 @@ private slots:
     void onStop();
     void onBrowse();
     void onLoadAlmanac();
+    void onFetchAlmanac();
+    void onAlmanacFetched();
     void onClearAlmanac();
     void onStartDateChanged(const QDateTime &utc);
     void showStartDate();
+    void onLocationEdited();
+    void showLocation();
+    void onShowGlobe();
     void onProgress(const sim::Progress &p);
     void onFinished(const QString &error);
     void onRadioChanged();
@@ -42,6 +50,7 @@ private slots:
 private:
     sim::Scenario scenario() const;
     QString loadAlmanac(const QString &path, bool setStart);
+    void updateGlobe(bool turnToReceiver);
     void showRadio();
     void log(const QString &text);
     void loadSettings();
@@ -55,5 +64,8 @@ private:
     int radio_ = 0;                      // the one the device field shows
     QString devices_[3];                 // each radio keeps its own address
     std::vector<sim::AlmanacEntry> almanac_;
+    QNetworkAccessManager *net_ = nullptr;
+    QNetworkReply *fetch_ = nullptr;     // the download of the current almanac, while it runs
+    GlobeDialog *globe_ = nullptr;       // made the first time it is opened
 };
 #endif // MAINWINDOW_H

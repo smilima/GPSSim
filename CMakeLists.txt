@@ -13,13 +13,14 @@ if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
     set(CMAKE_BUILD_TYPE Release CACHE STRING "Build type" FORCE)
 endif()
 
-find_package(Qt6 REQUIRED COMPONENTS Core Concurrent Network Widgets)
+find_package(Qt6 REQUIRED COMPONENTS Core Concurrent Network Widgets OpenGL OpenGLWidgets)
 
 # Everything that does not need a window. Generating samples needs optimising even in a Debug build.
 add_library(gpssimcore STATIC
     src/sim/Gps.h          src/sim/Gps.cpp
     src/sim/Almanac.h      src/sim/Almanac.cpp
     src/sim/GpsTime.h      src/sim/GpsTime.cpp
+    src/sim/Location.h     src/sim/Location.cpp
     src/sim/Lnav.h         src/sim/Lnav.cpp
     src/sim/Simulator.h    src/sim/Simulator.cpp
     src/sim/IqOutput.h     src/sim/IqOutput.cpp
@@ -38,6 +39,11 @@ qt_add_executable(GPSSim
     mainwindow.ui
     src/gui/SkyView.h
     src/gui/SkyView.cpp
+    src/gui/GlobeView.h
+    src/gui/GlobeView.cpp
+    src/gui/GlobeDialog.h
+    src/gui/GlobeDialog.cpp
+    src/gui/GlobeDialog.ui
 )
 qt_add_resources(GPSSim "icon"
     PREFIX "/"
@@ -46,7 +52,7 @@ qt_add_resources(GPSSim "icon"
 if(WIN32)
     target_sources(GPSSim PRIVATE resources/GPSSim.rc)    # icon of the .exe in Explorer
 endif()
-target_link_libraries(GPSSim PRIVATE gpssimcore Qt6::Widgets)
+target_link_libraries(GPSSim PRIVATE gpssimcore Qt6::Widgets Qt6::OpenGL Qt6::OpenGLWidgets)
 set_target_properties(GPSSim PROPERTIES WIN32_EXECUTABLE TRUE)
 
 qt_add_executable(gpssim_cli src/cli/main_cli.cpp)

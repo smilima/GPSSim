@@ -1,0 +1,141 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>GlobeDialog</class>
+ <widget class="QDialog" name="GlobeDialog">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>960</width>
+    <height>720</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>GPSSim Globe</string>
+  </property>
+  <layout class="QVBoxLayout" name="globeLayout" stretch="1,0,0">
+   <item>
+    <widget class="GlobeView" name="globeView">
+     <property name="toolTip">
+      <string>Drag with the left button to turn the globe; the wheel zooms</string>
+     </property>
+    </widget>
+   </item>
+   <item>
+    <layout class="QHBoxLayout" name="controlsLayout">
+     <item>
+      <widget class="QCheckBox" name="orbitsCheck">
+       <property name="text">
+        <string>Orbits</string>
+       </property>
+       <property name="toolTip">
+        <string>Each satellite's orbit as it lies in space now</string>
+       </property>
+       <property name="checked">
+        <bool>true</bool>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QCheckBox" name="sightCheck">
+       <property name="text">
+        <string>Lines of sight</string>
+       </property>
+       <property name="toolTip">
+        <string>From the receiver to each satellite above the elevation mask: the ones simulated</string>
+       </property>
+       <property name="checked">
+        <bool>true</bool>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QCheckBox" name="gridCheck">
+       <property name="text">
+        <string>Grid</string>
+       </property>
+       <property name="toolTip">
+        <string>Latitude and longitude every 15°</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <spacer name="controlsSpacer">
+       <property name="orientation">
+        <enum>Qt::Orientation::Horizontal</enum>
+       </property>
+       <property name="sizeHint" stdset="0">
+        <size>
+         <width>0</width>
+         <height>0</height>
+        </size>
+       </property>
+      </spacer>
+     </item>
+     <item>
+      <widget class="QLabel" name="timeLabel">
+       <property name="toolTip">
+        <string>The moment shown: the start, or the time simulated while running</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <spacer name="timeSpacer">
+       <property name="orientation">
+        <enum>Qt::Orientation::Horizontal</enum>
+       </property>
+       <property name="sizeHint" stdset="0">
+        <size>
+         <width>0</width>
+         <height>0</height>
+        </size>
+       </property>
+      </spacer>
+     </item>
+     <item>
+      <widget class="QPushButton" name="receiverButton">
+       <property name="text">
+        <string>Go to Receiver</string>
+       </property>
+       <property name="toolTip">
+        <string>Turn the globe to put the receiver in the middle</string>
+       </property>
+       <property name="autoDefault">
+        <bool>false</bool>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QPushButton" name="closeButton">
+       <property name="text">
+        <string>Close</string>
+       </property>
+       <property name="autoDefault">
+        <bool>false</bool>
+       </property>
+      </widget>
+     </item>
+    </layout>
+   </item>
+   <item>
+    <widget class="QLabel" name="statusLabel">
+     <property name="text">
+      <string>Drag with the left button to turn the globe; the wheel zooms.</string>
+     </property>
+     <property name="wordWrap">
+      <bool>true</bool>
+     </property>
+    </widget>
+   </item>
+  </layout>
+ </widget>
+ <customwidgets>
+  <customwidget>
+   <class>GlobeView</class>
+   <extends>QOpenGLWidget</extends>
+   <header>gui/GlobeView.h</header>
+  </customwidget>
+ </customwidgets>
+ <resources/>
+ <connections/>
+</ui>

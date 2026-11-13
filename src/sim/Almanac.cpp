@@ -20,8 +20,12 @@ const char* const kKeys[kFields] = {"id", "health", "eccentricity", "time of app
 QString readYuma(const QString& path, int nearWeek, std::vector<AlmanacEntry>* out)
 {
     QFile f(path);
-    if (!f.open(QIODevice::ReadOnly | QIODevice::Text)) return QStringLiteral("Cannot open %1: %2").arg(path, f.errorString());
+    if (!f.open(QIODevice::ReadOnly)) return QStringLiteral("Cannot open %1: %2").arg(path, f.errorString());
+    return parseYuma(f.readAll(), path, nearWeek, out);
+}
 
+QString parseYuma(const QByteArray& yuma, const QString& name, int nearWeek, std::vector<AlmanacEntry>* out)
+{
     std::vector<AlmanacEntry> sats;
     double v[kFields] = {};
     unsigned seen = 0;
@@ -57,8 +61,8 @@ QString readYuma(const QString& path, int nearWeek, std::vector<AlmanacEntry>* o
     };
 
     int line = 0;
-    while (!f.atEnd()) {
-        const QString text = QString::fromLatin1(f.readLine()).trimmed();
+    for (const QByteArray& raw : yuma.split('\n')) {
+        const QString text = QString::fromLatin1(raw).trimmed();
         ++line;
         const qsizetype colon = text.indexOf(QLatin1Char(':'));
         if (text.isEmpty() || text.startsWith(QLatin1Char('*')) || colon < 0) continue;
@@ -77,7 +81,7 @@ QString readYuma(const QString& path, int nearWeek, std::vector<AlmanacEntry>* o
     }
     const QString error = finish();
     if (!error.isEmpty()) return error;
-    if (sats.empty()) return QStringLiteral("%1 holds no YUMA almanac.").arg(path);
+    if (sats.empty()) return QStringLiteral("%1 holds no YUMA almanac.").arg(name);
     std::sort(sats.begin(), sats.end(), [](const AlmanacEntry& a, const AlmanacEntry& b) { return a.prn < b.prn; });
     *out = sats;
     return QString();

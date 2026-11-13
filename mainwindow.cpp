@@ -1,10 +1,12 @@
 #include "mainwindow.h"
 #include "./ui_mainwindow.h"
 
+#include "src/gui/GlobeDialog.h"
 #include "src/sim/Almanac.h"
 #include "src/sim/GpsTime.h"
 #include "src/sim/HackRfOutput.h"
 #include "src/sim/IqOutput.h"
+#include "src/sim/Location.h"
 #include "src/sim/UsrpOutput.h"
 
 #include <QCloseEvent>
@@ -12,11 +14,17 @@
 #include <QFileDialog>
 #include <QFileInfo>
 #include <QMessageBox>
+#include <QNetworkAccessManager>
+#include <QNetworkReply>
+#include <QNetworkRequest>
+#include <QSaveFile>
 #include <QSettings>
 #include <QSignalBlocker>
+#include <QStandardPaths>
 #include <QThread>
 #include <QTime>
 #include <QTimeZone>
+#include <QUrl>
 
 #include <cmath>
 #include <memory>
@@ -39,6 +47,7 @@ MainWindow::MainWindow(QWidget *parent)
     connect(ui->stopButton, &QPushButton::clicked, this, &MainWindow::onStop);
     connect(ui->browseButton, &QPushButton::clicked, this, &MainWindow::onBrowse);
     connect(ui->almanacButton, &QPushButton::clicked, this, &MainWindow::onLoadAlmanac);
+    connect(ui->almanacFetchButton, &QPushButton::clicked, this, &MainWindow::onFetchAlmanac);
     connect(ui->almanacClearButton, &QPushButton::clicked, this, &MainWindow::onClearAlmanac);
     connect(ui->fileCheck, &QCheckBox::toggled, this, &MainWindow::updateControls);
     connect(ui->streamCheck, &QCheckBox::toggled, this, &MainWindow::updateControls);
@@ -61,7 +70,80 @@ MainWindow::MainWindow(QWidget *parent)
         ui->startEdit->setDateTime(now.addMSecs(-now.time().msec()));
     });
     showStartDate();
+    // The position as text, or as latitude, longitude and height: each follows the other
+    connect(ui->locationEdit, &QLineEdit::editingFinished, this, &MainWindow::onLocationEdited);
+    connect(ui->locationEdit, &QLineEdit::textEdited, this, [this] { ui->locationEdit->setPalette(QPalette()); });
+    connect(ui->locationFormatCombo, &QComboBox::currentIndexChanged, this, &MainWindow::showLocation);
+    for (const QDoubleSpinBox *spin : {ui->latSpin, ui->lonSpin, ui->altSpin})
+        connect(spin, &QDoubleSpinBox::valueChanged, this, &MainWindow::showLocation);
+    showLocation();
+    // The globe follows the scenario: a new position turns it to the receiver
+    connect(ui->globeButton, &QPushButton::clicked, this, &MainWindow::onShowGlobe);
+    for (const QDoubleSpinBox *spin : {ui->latSpin, ui->lonSpin})
+        connect(spin, &QDoubleSpinBox::valueChanged, this, [this] { updateGlobe(true); });
+    for (const QDoubleSpinBox *spin : {ui->altSpin, ui->maskSpin})
+        connect(spin, &QDoubleSpinBox::valueChanged, this, [this] { updateGlobe(false); });
+    for (const QSpinBox *spin : {ui->weekSpin, ui->towSpin})
+        connect(spin, &QSpinBox::valueChanged, this, [this] { updateGlobe(false); });
     updateControls();
+}
+
+void MainWindow::onShowGlobe()
+{
+    const bool first = !globe_;
+    if (first) globe_ = new GlobeDialog(this);
+    updateGlobe(first);
+    globe_->show();
+    globe_->raise();
+    globe_->activateWindow();
+}
+
+// Shows the scenario's start on the globe. While running, the run moves it on.
+void MainWindow::updateGlobe(bool turnToReceiver)
+{
+    if (!globe_) return;
+    const Scenario s = scenario();
+    globe_->setSatellites(scenarioSatellites(s), s.elevationMask);
+    globe_->setMoment(s.week, s.tow, llhToEcef(s.latDeg * kPi / 180.0, s.lonDeg * kPi / 180.0, s.altM));
+    if (turnToReceiver) globe_->lookAtReceiver();
+}
+
+void MainWindow::showLocation()
+{
+    ui->locationEdit->setPalette(QPalette());
+    ui->locationEdit->setText(formatLocation(LocationFormat(ui->locationFormatCombo->currentIndex()), ui->latSpin->value(),
+                                             ui->lonSpin->value(), ui->altSpin->value()));
+}
+
+// Reads the position in whichever way it was typed, and from then on shows it that way
+void MainWindow::onLocationEdited()
+{
+    if (!ui->locationEdit->isModified()) return;      // leaving the field after Enter, or without a change
+    ui->locationEdit->setModified(false);
+    if (ui->locationEdit->text().trimmed().isEmpty()) {
+        showLocation();
+        return;
+    }
+    double lat = 0, lon = 0, h = ui->altSpin->value();
+    LocationFormat format = LocationFormat::Degrees;
+    QString error = parseLocation(ui->locationEdit->text(), &lat, &lon, &h, &format);
+    if (error.isEmpty() && (h < ui->altSpin->minimum() || h > ui->altSpin->maximum()))
+        error = tr("That is %1 m above the ellipsoid: the height runs from %2 to %3 m.")
+                    .arg(h, 0, 'f', 0).arg(ui->altSpin->minimum()).arg(ui->altSpin->maximum());
+    if (!error.isEmpty()) {      // the position stays as it was, and the text stays to be put right
+        QPalette red = ui->locationEdit->palette();
+        red.setColor(QPalette::Text, Qt::red);
+        ui->locationEdit->setPalette(red);
+        log(tr("Location: %1").arg(error));
+        return;
+    }
+    const QSignalBlocker blockLat(ui->latSpin), blockLon(ui->lonSpin), blockAlt(ui->altSpin), blockFormat(ui->locationFormatCombo);
+    ui->latSpin->setValue(lat);
+    ui->lonSpin->setValue(lon);
+    ui->altSpin->setValue(h);
+    ui->locationFormatCombo->setCurrentIndex(int(format));
+    showLocation();
+    updateGlobe(true);
 }
 
 void MainWindow::onStartDateChanged(const QDateTime &utc)
@@ -71,6 +153,7 @@ void MainWindow::onStartDateChanged(const QDateTime &utc)
     const QSignalBlocker blockWeek(ui->weekSpin), blockTow(ui->towSpin);
     ui->weekSpin->setValue(week);
     ui->towSpin->setValue(tow);
+    updateGlobe(false);
 }
 
 void MainWindow::showStartDate()
@@ -110,6 +193,11 @@ void MainWindow::closeEvent(QCloseEvent *event)
         delete worker_;
         worker_ = nullptr;
     }
+    if (fetch_) {
+        fetch_->disconnect(this);
+        fetch_->abort();
+    }
+    if (globe_) globe_->close();
     saveSettings();
     event->accept();
 }
@@ -143,7 +231,10 @@ Scenario MainWindow::scenario() const
 
 void MainWindow::updateControls()
 {
-    const bool running = worker_ != nullptr;
+    const bool running = worker_ != nullptr, fetching = fetch_ != nullptr;
+    for (QWidget *w : {static_cast<QWidget *>(ui->locationEdit), static_cast<QWidget *>(ui->locationFormatCombo),
+                       static_cast<QWidget *>(ui->latSpin), static_cast<QWidget *>(ui->lonSpin), static_cast<QWidget *>(ui->altSpin)})
+        w->setEnabled(!running);      // the globe stays at hand
     ui->scenarioBox->setEnabled(!running);
     ui->signalBox->setEnabled(!running);
     ui->outputBox->setEnabled(!running);
@@ -156,8 +247,10 @@ void MainWindow::updateControls()
     ui->radioRefCheck->setEnabled(radio != NoRadio);
     ui->radioAmpCheck->setEnabled(radio == HackRfRadio);
     ui->radioPpmSpin->setEnabled(radio == HackRfRadio);
-    ui->almanacClearButton->setEnabled(!almanac_.empty());
-    ui->startButton->setEnabled(!running);
+    ui->almanacButton->setEnabled(!fetching);
+    ui->almanacFetchButton->setEnabled(!fetching);
+    ui->almanacClearButton->setEnabled(!almanac_.empty() && !fetching);
+    ui->startButton->setEnabled(!running && !fetching);      // a run takes the almanac it starts with
     ui->stopButton->setEnabled(running);
 
     if (!nameEdited_ && !running) {
@@ -184,12 +277,54 @@ void MainWindow::onLoadAlmanac()
     if (!error.isEmpty()) QMessageBox::warning(this, tr("GPSSim"), error);
 }
 
+void MainWindow::onFetchAlmanac()
+{
+    if (fetch_) return;
+    if (!net_) net_ = new QNetworkAccessManager(this);
+    QNetworkRequest request{QUrl(QString::fromLatin1(kCurrentYumaUrl))};
+    request.setTransferTimeout(20000);
+    request.setHeader(QNetworkRequest::UserAgentHeader, QStringLiteral("GPSSim"));
+    fetch_ = net_->get(request);
+    connect(fetch_, &QNetworkReply::finished, this, &MainWindow::onAlmanacFetched);
+    log(tr("Fetching the current almanac from %1").arg(request.url().host()));
+    updateControls();
+}
+
+// Keeps the downloaded almanac as a file named by its week and reference time, and loads it
+void MainWindow::onAlmanacFetched()
+{
+    QNetworkReply *reply = fetch_;
+    fetch_ = nullptr;
+    reply->deleteLater();
+    QString error, path;
+    if (reply->error() != QNetworkReply::NoError) {
+        error = reply->errorString();
+    } else {
+        const QByteArray yuma = reply->readAll();
+        std::vector<AlmanacEntry> sats;
+        error = parseYuma(yuma, tr("The reply from %1").arg(reply->url().host()), gpsWeekNow(), &sats);
+        if (error.isEmpty()) {
+            const QDir dir(QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation) + QStringLiteral("/almanacs"));
+            dir.mkpath(QStringLiteral("."));
+            path = dir.filePath(QStringLiteral("yuma_week%1_%2.alm").arg(sats.front().week).arg(qRound(sats.front().toa)));
+            QSaveFile file(path);
+            if (!file.open(QIODevice::WriteOnly) || file.write(yuma) != yuma.size() || !file.commit())
+                error = tr("Cannot write %1: %2").arg(QDir::toNativeSeparators(path), file.errorString());
+        }
+    }
+    if (error.isEmpty()) error = loadAlmanac(path, true);
+    else error = tr("Could not fetch the almanac: %1").arg(error);
+    updateControls();
+    if (!error.isEmpty()) QMessageBox::warning(this, tr("GPSSim"), error);
+}
+
 void MainWindow::onClearAlmanac()
 {
     almanac_.clear();
     ui->almanacEdit->clear();
     ui->almanacEdit->setToolTip(QString());
     log(tr("Using the made-up constellation"));
+    updateGlobe(false);
     updateControls();
 }
 
@@ -216,6 +351,7 @@ QString MainWindow::loadAlmanac(const QString &path, bool setStart)
         ui->towSpin->setValue(int(ref.toa));
         log(tr("The start is now the almanac's reference time"));
     }
+    updateGlobe(false);
     updateControls();
     return QString();
 }
@@ -342,6 +478,7 @@ void MainWindow::onProgress(const Progress &p)
                                  .arg(p.seconds, 0, 'f', 1).arg(p.speed, 0, 'f', 1).arg(double(p.bytes) / 1e6, 0, 'f', 0)
                                  .arg(p.sats.size()).arg(p.clipped * 100.0, 0, 'f', 3));
     ui->skyView->setSatellites(p.sats);
+    if (globe_) globe_->setMoment(s.week, s.tow + p.seconds, p.truth);
     ui->satTable->setRowCount(int(p.sats.size()));
     for (int r = 0; r < int(p.sats.size()); ++r) {
         const SatStatus &t = p.sats[size_t(r)];
@@ -376,13 +513,15 @@ void MainWindow::log(const QString &text)
 void MainWindow::saveSettings() const
 {
     QSettings q(QStringLiteral("GPSSim"), QStringLiteral("GPSSim"));
-    const auto spins = findChildren<QDoubleSpinBox *>();
+    // The fields of this window only: the globe's window keeps its own
+    const auto spins = centralWidget()->findChildren<QDoubleSpinBox *>();
     for (const QDoubleSpinBox *w : spins) q.setValue(w->objectName(), w->value());
-    const auto ints = findChildren<QSpinBox *>();
+    const auto ints = centralWidget()->findChildren<QSpinBox *>();
     for (const QSpinBox *w : ints) q.setValue(w->objectName(), w->value());
-    const auto checks = findChildren<QCheckBox *>();
+    const auto checks = centralWidget()->findChildren<QCheckBox *>();
     for (const QCheckBox *w : checks) q.setValue(w->objectName(), w->isChecked());
     q.setValue(QStringLiteral("format"), ui->formatCombo->currentIndex());
+    q.setValue(QStringLiteral("locationFormat"), ui->locationFormatCombo->currentIndex());
     q.setValue(QStringLiteral("file"), ui->fileEdit->text());
     q.setValue(QStringLiteral("nameEdited"), nameEdited_);
     q.setValue(QStringLiteral("almanac"), ui->almanacEdit->text());
@@ -395,13 +534,14 @@ void MainWindow::saveSettings() const
 void MainWindow::loadSettings()
 {
     QSettings q(QStringLiteral("GPSSim"), QStringLiteral("GPSSim"));
-    const auto spins = findChildren<QDoubleSpinBox *>();
+    const auto spins = centralWidget()->findChildren<QDoubleSpinBox *>();
     for (QDoubleSpinBox *w : spins) w->setValue(q.value(w->objectName(), w->value()).toDouble());
-    const auto ints = findChildren<QSpinBox *>();
+    const auto ints = centralWidget()->findChildren<QSpinBox *>();
     for (QSpinBox *w : ints) w->setValue(q.value(w->objectName(), w->value()).toInt());
-    const auto checks = findChildren<QCheckBox *>();
+    const auto checks = centralWidget()->findChildren<QCheckBox *>();
     for (QCheckBox *w : checks) w->setChecked(q.value(w->objectName(), w->isChecked()).toBool());
     ui->formatCombo->setCurrentIndex(q.value(QStringLiteral("format"), 0).toInt());
+    ui->locationFormatCombo->setCurrentIndex(q.value(QStringLiteral("locationFormat"), 0).toInt());
     ui->fileEdit->setText(q.value(QStringLiteral("file")).toString());
     nameEdited_ = q.value(QStringLiteral("nameEdited"), false).toBool();
     const QString almanac = q.value(QStringLiteral("almanac")).toString();
