@@ -2,6 +2,7 @@
 #include "ui_GlobeDialog.h"
 
 #include "BorderStore.h"
+#include "CityStore.h"
 #include "TileStore.h"
 #include "sim/GpsTime.h"
 
@@ -67,10 +68,12 @@ GlobeDialog::GlobeDialog(QWidget* parent) : QDialog(parent), ui(new Ui::GlobeDia
     ui->sightCheck->setChecked(q.value(QStringLiteral("globe/sightLines"), true).toBool());
     ui->gridCheck->setChecked(q.value(QStringLiteral("globe/grid"), false).toBool());
     ui->bordersCheck->setChecked(q.value(QStringLiteral("globe/borders"), true).toBool());
+    ui->citiesCheck->setChecked(q.value(QStringLiteral("globe/cities"), true).toBool());
     ui->globeView->setShowOrbits(ui->orbitsCheck->isChecked());
     ui->globeView->setShowSightLines(ui->sightCheck->isChecked());
     ui->globeView->setShowGrid(ui->gridCheck->isChecked());
     ui->globeView->setShowBorders(ui->bordersCheck->isChecked());
+    ui->globeView->setShowCities(ui->citiesCheck->isChecked());
     ui->globeView->setTileStore(new TileStore(imageryFolder() + QStringLiteral("/tiles"), this));
 
     // Borders, read or fetched when first shown
@@ -87,6 +90,22 @@ GlobeDialog::GlobeDialog(QWidget* parent) : QDialog(parent), ui(new Ui::GlobeDia
     connect(ui->bordersCheck, &QCheckBox::toggled, this, [this](bool on) {
         ui->globeView->setShowBorders(on);
         if (on) loadBorders();
+    });
+
+    // Cities likewise
+    cities_ = new CityStore(imageryFolder() + QStringLiteral("/cities"), this);
+    connect(cities_, &CityStore::ready, this, [this] {
+        ui->globeView->setCities(cities_->take());
+        citiesNote_.clear();
+        showHint();
+    });
+    connect(cities_, &CityStore::failed, this, [this](const QString& error) {
+        citiesNote_ = tr("No cities (%1). They are fetched again the next time the globe opens.").arg(error);
+        showHint();
+    });
+    connect(ui->citiesCheck, &QCheckBox::toggled, this, [this](bool on) {
+        ui->globeView->setShowCities(on);
+        if (on) loadCities();
     });
 
     connect(ui->orbitsCheck, &QCheckBox::toggled, ui->globeView, &GlobeView::setShowOrbits);
@@ -115,13 +134,21 @@ void GlobeDialog::setEditable(bool on)
 void GlobeDialog::showHint()
 {
     QStringList notes;
-    for (const QString& note : {imageryNote_, bordersNote_})
+    for (const QString& note : {imageryNote_, bordersNote_, citiesNote_})
         if (!note.isEmpty()) notes << note;
     if (!notes.isEmpty()) ui->statusLabel->setText(notes.join(QStringLiteral("  ")));
     else
         ui->statusLabel->setText(ui->editButton->isChecked()
                                      ? tr("Edit: drag the red dot to move the receiver; its height stays. Press View to only look again.")
                                      : viewHint_);
+}
+
+void GlobeDialog::loadCities()
+{
+    if (cities_->loaded() || cities_->busy()) return;
+    citiesNote_ = cities_->kept() ? QString() : tr("Fetching the cities from Natural Earth (5 MB)…");
+    showHint();
+    cities_->load();
 }
 
 void GlobeDialog::loadBorders()
@@ -162,6 +189,7 @@ void GlobeDialog::showEvent(QShowEvent* event)
     QDialog::showEvent(event);
     if (!ui->globeView->hasEarthImage() && !fetching_) loadImagery();
     if (ui->bordersCheck->isChecked()) loadBorders();
+    if (ui->citiesCheck->isChecked()) loadCities();
 }
 
 void GlobeDialog::hideEvent(QHideEvent* event)
@@ -179,6 +207,7 @@ void GlobeDialog::saveSettings() const
     q.setValue(QStringLiteral("globe/sightLines"), ui->sightCheck->isChecked());
     q.setValue(QStringLiteral("globe/grid"), ui->gridCheck->isChecked());
     q.setValue(QStringLiteral("globe/borders"), ui->bordersCheck->isChecked());
+    q.setValue(QStringLiteral("globe/cities"), ui->citiesCheck->isChecked());
 }
 
 // The Earth's imagery from the copy kept, or else from NASA, kept for next time

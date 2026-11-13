@@ -94,6 +94,11 @@ where they are at the start. While a run goes on, the globe follows it, at the t
 * **Borders.** Country borders are drawn in yellow, and state and province borders in white, which fade in from
   8000 km down. They are Natural Earth's (public domain, at 1:10 million, so within about a kilometre), fetched once
   (23 MB) the first time *Borders* is on, and kept in a compact form (4 MB).
+* **Cities.** Capitals and larger towns are named, more of them nearer the ground: the largest from afar, towns of
+  about 100 000 from a few thousand kilometres. Capitals are in bold gold. No name covers another, nor the receiver,
+  a satellite or the key: where one would, the less important city is left out. They are Natural Earth's 7342
+  populated places (public domain), fetched once (5 MB) the first time *Cities* is on and kept in a compact form
+  (270 kB). Smaller towns are not among them: near Boulder, for one, Longmont and Golden are missing.
 * **Moving around.** Drag with the left button to turn the globe: the ground under the pointer follows it. Drag up
   with the right button to tilt the view towards the northern horizon, turning about the ground in the middle, and
   down to look straight down again; tilted all the way, the lines of sight rise into the sky over the receiver. The
@@ -108,8 +113,9 @@ where they are at the start. While a run goes on, the globe follows it, at the t
   show: Blue Marble down to 490 m a pixel, then over land the Landsat mosaic of NASA's Web-Enabled Landsat Data
   (WELD) down to 31 m, where streets and fields show. Six tiles come at a time, the coarsest first, so the view fills
   in and then sharpens; the line at the bottom of the globe counts the tiles on their way.
-* **Offline.** Every image, and the borders, are kept in `GlobeData` next to `GPSSim.exe` as they arrive
-  (`blue_marble_4096.jpg`, `borders\borders.bin`, and `tiles\bluemarble` and `tiles\landsat` by level, row and column,
+* **Offline.** Every image, the borders and the cities are kept in `GlobeData` next to `GPSSim.exe` as they arrive
+  (`blue_marble_4096.jpg`, `borders\borders.bin`, `cities\cities.bin`, and `tiles\bluemarble` and `tiles\landsat` by
+  level, row and column,
   20 to 75 kB a tile) and read from there first, so a place seen once shows again just as sharp without a connection.
   To take the globe to another computer, copy `GPSSim.exe` with its `GlobeData` folder: the static build needs
   nothing else. Without a connection the line at the bottom says so, and places not seen before show the sharpest

@@ -1,6 +1,7 @@
 #include "GlobeView.h"
 
 #include <QCursor>
+#include <QFontMetrics>
 #include <QLineF>
 #include <QLocale>
 #include <QMouseEvent>
@@ -764,9 +765,28 @@ void GlobeView::drawOverlay(QPainter& p, const QMatrix4x4& vp)
         p.drawText(at, text);
     };
 
-    // The receiver, unless it is over the horizon. In edit mode a ring shows it can be dragged.
+    // The satellites in front of the Earth, the nearest last
+    std::vector<std::pair<const Sat*, QPointF>> shown;
+    const QVector3D e = eye();
+    for (const Sat& s : sats_) {
+        QPointF where;
+        if (!behindEarth(s.pos) && toScreen(vp, s.pos, &where)) shown.emplace_back(&s, where);
+    }
+    std::sort(shown.begin(), shown.end(), [&e](const auto& a, const auto& b) { return (a.first->pos - e).length() > (b.first->pos - e).length(); });
+
+    // Cities under everything else, kept clear of the receiver, the satellites, the key and the lines at the bottom
     QPointF at;
-    if (receiverOnScreen(vp, &at)) {
+    const bool receiverShown = receiverOnScreen(vp, &at);
+    if (showsCities()) {
+        const int line = QFontMetrics(bold).height();
+        std::vector<QRectF> taken = {QRectF(0, 0, 250, 3 * (line + 4) + 12), QRectF(0, height() - line - 14, width(), line + 14)};
+        if (receiverShown) taken.push_back(QRectF(at.x() - 12, at.y() - 12, 24 + 10 + QFontMetrics(bold).horizontalAdvance(tr("Receiver")), 24));
+        for (const auto& [s, where] : shown) taken.push_back(QRectF(where.x() - 11, where.y() - 11, 22, 22));
+        drawCities(p, vp, &taken);
+    }
+
+    // The receiver, unless it is over the horizon. In edit mode a ring shows it can be dragged.
+    if (receiverShown) {
         if (editing_) {
             p.setPen(QPen(QColor(255, 255, 255, 220), 2));
             p.setBrush(Qt::NoBrush);
@@ -779,21 +799,13 @@ void GlobeView::drawOverlay(QPainter& p, const QMatrix4x4& vp)
         shadowed(at + QPointF(10, 4), tr("Receiver"), Qt::white);
     }
 
-    // The satellites in front of the Earth, the nearest last
-    std::vector<const Sat*> shown;
-    for (const Sat& s : sats_)
-        if (!behindEarth(s.pos)) shown.push_back(&s);
-    const QVector3D e = eye();
-    std::sort(shown.begin(), shown.end(), [&e](const Sat* a, const Sat* b) { return (a->pos - e).length() > (b->pos - e).length(); });
     p.setFont(bold);
-    for (const Sat* s : shown) {
-        if (!toScreen(vp, s->pos, &at)) continue;
-        const bool inView = s->el >= mask_;
+    for (const auto& [s, where] : shown) {
         p.setPen(QPen(QColor(0, 0, 0, 160), 1));
-        p.setBrush(inView ? kInView : kBelowMask);
-        p.drawEllipse(at, 10, 10);
+        p.setBrush(s->el >= mask_ ? kInView : kBelowMask);
+        p.drawEllipse(where, 10, 10);
         p.setPen(Qt::black);
-        p.drawText(QRectF(at.x() - 10, at.y() - 10, 20, 20), Qt::AlignCenter, QString::number(s->prn));
+        p.drawText(QRectF(where.x() - 10, where.y() - 10, 20, 20), Qt::AlignCenter, QString::number(s->prn));
     }
 
     // Key, height of the eye and credit
@@ -815,9 +827,93 @@ void GlobeView::drawOverlay(QPainter& p, const QMatrix4x4& vp)
     shadowed(QPointF(10, height() - 10), state, QColor(230, 230, 230));
     if (textured_ || !textures_.empty()) {
         QString credit = tr("Imagery: NASA Blue Marble and Landsat (WELD), from NASA GIBS");
-        if (showsBorders()) credit += tr("  ·  Borders: Natural Earth");
+        if (showsBorders() && showsCities()) credit += tr("  ·  Borders and cities: Natural Earth");
+        else if (showsBorders()) credit += tr("  ·  Borders: Natural Earth");
+        else if (showsCities()) credit += tr("  ·  Cities: Natural Earth");
         shadowed(QPointF(width() - 10 - p.fontMetrics().horizontalAdvance(credit), height() - 10), credit, QColor(200, 200, 200));
     }
+}
+
+// The cities near enough to name, the most important first, each with its name to the right or else to the left of its
+// dot. One whose name would cover something already drawn is left out, dot and all. Natural Earth gives each city the
+// web-map zoom from which to show it; the zoom here is that of a web map as sharp as the view is at the city, plus one
+// so that the largest cities show from afar.
+void GlobeView::drawCities(QPainter& p, const QMatrix4x4& vp, std::vector<QRectF>* taken)
+{
+    QFont font = this->font();
+    font.setPointSizeF(font.pointSizeF() * 0.85);
+    QFont capital = font;
+    capital.setBold(true);
+    const QFontMetricsF plain(font), bold(capital);
+    if (nameWidths_.size() != cities_.size()) nameWidths_.assign(cities_.size(), -1.0f);
+
+    const QVector3D e = eye();
+    const double metresPerRadian = kWgsA * 2.0 * std::tan(kFov / 2.0 * kDeg) / std::max(1, height());
+    const QRectF screen = QRectF(rect()).adjusted(-40, -10, 40, 10);
+    struct Candidate
+    {
+        size_t index;
+        QPointF at;
+    };
+    std::vector<Candidate> nearby;
+    for (size_t i = 0; i < cities_.size(); ++i) {
+        const City& c = cities_[i];
+        const QVector3D toEye = e - c.pos;
+        if (QVector3D::dotProduct(c.pos, toEye) <= 0) continue;      // over the horizon
+        const double metresPerPixel = toEye.length() * metresPerRadian;
+        if (c.minZoom > std::log2(40075016.686 / (256.0 * metresPerPixel)) + 1.0) continue;
+        QPointF at;
+        if (toScreen(vp, c.pos, &at) && screen.contains(at)) nearby.push_back({i, at});
+    }
+    std::sort(nearby.begin(), nearby.end(), [this](const Candidate& a, const Candidate& b) {
+        const City &x = cities_[a.index], &y = cities_[b.index];
+        return x.minZoom != y.minZoom ? x.minZoom < y.minZoom : x.population > y.population;
+    });
+
+    const auto clear = [taken](const QRectF& r) {
+        return std::none_of(taken->begin(), taken->end(), [&r](const QRectF& t) { return t.intersects(r); });
+    };
+    int drawn = 0;
+    for (const Candidate& c : nearby) {
+        if (drawn >= 300) break;
+        const City& city = cities_[c.index];
+        const bool isCapital = city.kind == City::Capital;
+        const QFontMetricsF& m = isCapital ? bold : plain;
+        float& width = nameWidths_[c.index];
+        if (width < 0) width = float(m.horizontalAdvance(city.name));
+        const double r = isCapital ? 3.5 : city.kind == City::StateCapital ? 3.0 : 2.5;
+        const QRectF dot(c.at.x() - r - 1, c.at.y() - r - 1, 2 * r + 2, 2 * r + 2);
+        const QRectF right(c.at.x() + r + 3, c.at.y() - m.height() / 2, width + 2, m.height());
+        const QRectF left(c.at.x() - r - 5 - width, c.at.y() - m.height() / 2, width + 2, m.height());
+        const QRectF* label = clear(right) ? &right : clear(left) ? &left : nullptr;
+        if (!label || !clear(dot)) continue;
+        taken->push_back(dot);
+        taken->push_back(*label);
+        ++drawn;
+
+        p.setPen(QPen(QColor(0, 0, 0, 200), isCapital ? 1.5 : 1.0));
+        p.setBrush(isCapital ? QColor(255, 225, 120) : QColor(245, 245, 245));
+        p.drawEllipse(c.at, r, r);
+        p.setFont(isCapital ? capital : font);
+        const QPointF baseline(label->left(), c.at.y() + m.ascent() / 2 - 1);
+        p.setPen(QColor(0, 0, 0, 210));
+        p.drawText(baseline + QPointF(1, 1), city.name);
+        p.setPen(isCapital ? QColor(255, 235, 160) : QColor(240, 240, 240));
+        p.drawText(baseline, city.name);
+    }
+}
+
+void GlobeView::setCities(std::vector<City> cities)
+{
+    cities_ = std::move(cities);
+    nameWidths_.clear();
+    update();
+}
+
+void GlobeView::setShowCities(bool on)
+{
+    showCities_ = on;
+    update();
 }
 
 // Where the line of sight under pos meets the ground, taken as a sphere as high as the ground under the eye. The

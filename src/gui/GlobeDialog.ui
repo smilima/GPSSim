@@ -73,6 +73,19 @@
       </widget>
      </item>
      <item>
+      <widget class="QCheckBox" name="citiesCheck">
+       <property name="text">
+        <string>Cities</string>
+       </property>
+       <property name="toolTip">
+        <string>Capitals and larger towns, more of them nearer the ground, from Natural Earth</string>
+       </property>
+       <property name="checked">
+        <bool>true</bool>
+       </property>
+      </widget>
+     </item>
+     <item>
       <spacer name="controlsSpacer">
        <property name="orientation">
         <enum>Qt::Orientation::Horizontal</enum>

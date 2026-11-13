@@ -1,6 +1,7 @@
 #pragma once
 
 #include "BorderStore.h"
+#include "CityStore.h"
 #include "TileStore.h"
 #include "sim/Gps.h"
 
@@ -47,6 +48,10 @@ public:
     void setBorders(BorderLines lines);
     void setShowBorders(bool on);
     bool showsBorders() const { return showBorders_ && borderVertices_ > 0; }
+    // Cities as dots and names, more of them nearer the ground, none hiding another
+    void setCities(std::vector<City> cities);
+    void setShowCities(bool on);
+    bool showsCities() const { return showCities_ && !cities_.empty(); }
     // Turns the globe to put the receiver in the middle
     void lookAtReceiver();
     // In edit mode the receiver's dot can be dragged. The view does not move it: it tells where to with receiverDragged,
@@ -119,6 +124,7 @@ private:
     bool overReceiver(const QPointF& pos) const;
     void setIdleCursor(const QPointF& pos);
     void drawOverlay(QPainter& p, const QMatrix4x4& vp);
+    void drawCities(QPainter& p, const QMatrix4x4& vp, std::vector<QRectF>* taken);
 
     // What is shown
     std::vector<sim::Ephemeris> ephemerides_;
@@ -131,6 +137,9 @@ private:
     bool linesChanged_ = true;
     QImage pendingImage_;          // waiting for the context
     bool textured_ = false;
+    std::vector<City> cities_;
+    std::vector<float> nameWidths_;           // of each city's name on the screen, once measured; -1 before
+    bool showCities_ = true;
     BorderLines pendingBorders_;   // waiting for the context
     bool bordersChanged_ = false, showBorders_ = true;
     int countryVertices_ = 0, borderVertices_ = 0;
